@@ -201,6 +201,21 @@ class NotNode(ExprNode):
         return visitor.visit_not(self)
 
 
+class NegNode(ExprNode):
+    def __init__(self, line, col, operand):
+        super().__init__(line, col)
+        self.operand = operand
+
+    def label(self):
+        return "Neg"
+
+    def children(self):
+        return [self.operand]
+
+    def accept(self, visitor):
+        return visitor.visit_neg(self)
+
+
 class VarNode(ExprNode):
     def __init__(self, line, col, name):
         super().__init__(line, col)
