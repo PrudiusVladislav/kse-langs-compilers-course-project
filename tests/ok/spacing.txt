@@ -1,8 +1,8 @@
-i32 x{2}
+3⃣ x ⟨ 2 ⟩
 
-	i32 mut y {  x+3  }
+	3⃣ 🔓 y ⟨ x+3 ⟩
 
 
-y   :=   y * x
+y := y * x
 
-exit y
+🚪 y

@@ -1,5 +1,5 @@
-i32 a{7}
-i64 b{a}
-i64 mut c{a + b}
+3⃣ a ⟨ 7 ⟩
+6⃣ b ⟨ a ⟩
+6⃣ 🔓 c ⟨ a + b ⟩
 c := c * a
-exit c
+🚪 c

@@ -1,2 +1,2 @@
-bool b{1}
-exit b
+❓ b ⟨ 1 ⟩
+🚪 b

@@ -1,6 +1,6 @@
-bool t{true}
-if t
+❓ t ⟨ ✅ ⟩
+🤔 t
 {
-    i32 inner{5}
+    3⃣ inner ⟨ 5 ⟩
 }
-exit inner
+🚪 inner

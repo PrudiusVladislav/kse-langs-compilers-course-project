@@ -1,7 +1,7 @@
-bool b{true}
-if b
+❓ b ⟨ ✅ ⟩
+🤔 b
 {
-    exit 1
-    i32 a{2}
+    🚪 1
+    3⃣ a ⟨ 2 ⟩
 }
-exit 0
+🚪 0

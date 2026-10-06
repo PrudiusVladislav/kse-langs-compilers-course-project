@@ -1,6 +1,6 @@
-i32 a{1}
-if a
+3⃣ a ⟨ 1 ⟩
+🤔 a
 {
-    exit a
+    🚪 a
 }
-exit a
+🚪 a
