@@ -1,5 +1,5 @@
-bool t{true}
-bool f{false}
-bool diff{t != f}
-bool r{diff == f}
-exit r
+❓ t ⟨ ✅ ⟩
+❓ f ⟨ ❌ ⟩
+❓ diff ⟨ t ≠ f ⟩
+❓ r ⟨ diff == f ⟩
+🚪 r

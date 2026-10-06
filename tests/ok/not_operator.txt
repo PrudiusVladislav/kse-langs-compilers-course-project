@@ -1,10 +1,10 @@
-bool a{true}
-bool b{false}
-bool c{!a}
-bool mut d{! b}
+❓ a ⟨ ✅ ⟩
+❓ b ⟨ ❌ ⟩
+❓ c ⟨ !a ⟩
+❓ 🔓 d ⟨ ! b ⟩
 d := !c
-if !c
+🤔 !c
 {
-    exit d
+    🚪 d
 }
-exit 0
+🚪 0

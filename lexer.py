@@ -1,16 +1,19 @@
-START, IDENT, NUMBER, PAIR, BANG = "START", "IDENT", "NUMBER", "PAIR", "BANG"
+START, IDENT, NUMBER, PAIR, GLYPH = "START", "IDENT", "NUMBER", "PAIR", "GLYPH"
 
-KEYWORDS = {
-    "i32": "kw_i32",
-    "i64": "kw_i64",
-    "bool": "kw_bool",
-    "mut": "kw_mut",
-    "exit": "kw_exit",
-    "if": "kw_if",
-    "else": "kw_else",
-    "while": "kw_while",
-    "true": "kw_true",
-    "false": "kw_false",
+GLYPHS = {
+    "3⃣": "kw_i32",
+    "6⃣": "kw_i64",
+    "❓": "kw_bool",
+    "\U0001f513": "kw_mut",
+    "\U0001f914": "kw_if",
+    "\U0001f643": "kw_else",
+    "\U0001f501": "kw_while",
+    "\U0001f6aa": "kw_exit",
+    "✅": "kw_true",
+    "❌": "kw_false",
+    "⟨": "langle",
+    "⟩": "rangle",
+    "≠": "ne",
 }
 CATEGORIES = {
     "kw_i32": ("keyword", "typename"),
@@ -27,6 +30,10 @@ CATEGORIES = {
     "number": ("constant", "numeric"),
     "lbrace": ("block", "start"),
     "rbrace": ("block", "end"),
+    "langle": ("initialiser", "start"),
+    "rangle": ("initialiser", "end"),
+    "lparen": ("group", "start"),
+    "rparen": ("group", "end"),
     "assign": ("operator", "assignment"),
     "plus": ("operator", "arithmetic"),
     "minus": ("operator", "arithmetic"),
@@ -39,14 +46,19 @@ CATEGORIES = {
 SINGLES = {
     ord("{"): "lbrace",
     ord("}"): "rbrace",
+    ord("("): "lparen",
+    ord(")"): "rparen",
     ord("+"): "plus",
     ord("-"): "minus",
     ord("*"): "star",
+    ord("!"): "not",
 }
 PAIRS = {
     ord(":"): ("assign", ":=", "':' is not followed by '='"),
     ord("="): ("eq", "==", "expected '==' (a single '=' is not an operator)"),
 }
+KEYCAP = b"\x83\xa3"
+TYPE_DIGITS = {b"3": "kw_i32", b"6": "kw_i64"}
 
 
 class CompileError(Exception):
@@ -79,6 +91,10 @@ def is_digit(b):
     return b is not None and 48 <= b <= 57
 
 
+def byte_text(b):
+    return chr(b) if 32 <= b <= 126 else f"\\x{b:02x}"
+
+
 def lex(data):
     lines, tokens = [], []
     state, start, start_col = START, 0, 1
@@ -104,10 +120,10 @@ def lex(data):
                 state, start, start_col = NUMBER, i, col
             elif b in PAIRS:
                 state, pair, start_col = PAIR, PAIRS[b], col
-            elif b == ord("!"):
-                state, start_col = BANG, col
             elif b in SINGLES:
                 tokens.append(Token(SINGLES[b], chr(b), line, col))
+            elif b >= 0xC0:
+                state, start, start_col = GLYPH, i, col
             else:
                 raise CompileError(line, col, f"unexpected byte '{byte_text(b)}'")
 
@@ -115,8 +131,7 @@ def lex(data):
             if is_alpha(b) or is_digit(b):
                 pass
             else:
-                word = data[start:i].decode()
-                tokens.append(Token(KEYWORDS.get(word, "ident"), word, line, start_col))
+                tokens.append(Token("ident", data[start:i].decode(), line, start_col))
                 state = START
                 continue
 
@@ -125,17 +140,32 @@ def lex(data):
                 pass
             elif is_alpha(b):
                 raise CompileError(line, col, f"unexpected byte '{byte_text(b)}' in a number")
+            elif b == 0xE2 and data[i + 1 : i + 3] == KEYCAP:
+                run = data[start:i]
+                if run not in TYPE_DIGITS:
+                    raise CompileError(
+                        line, start_col, f"a keycap may not follow the number {run.decode()}"
+                    )
+                after = data[i + 3] if i + 3 < len(data) else None
+                if is_digit(after):
+                    raise CompileError(line, col + 1, "a number may not follow a type")
+                tokens.append(Token(TYPE_DIGITS[run], run.decode() + "⃣", line, start_col))
+                state = START
+                i, col = i + 3, col + 1
+                continue
             else:
                 tokens.append(Token("number", data[start:i].decode(), line, start_col))
                 state = START
                 continue
 
-        elif state == BANG:
-            if b == ord("="):
-                tokens.append(Token("ne", "!=", line, start_col))
-                state = START
+        elif state == GLYPH:
+            if b is not None and 0x80 <= b <= 0xBF:
+                pass
             else:
-                tokens.append(Token("not", "!", line, start_col))
+                glyph = data[start:i].decode(errors="replace")
+                if glyph not in GLYPHS:
+                    raise CompileError(line, start_col, f"unknown glyph '{glyph}'")
+                tokens.append(Token(GLYPHS[glyph], glyph, line, start_col))
                 state = START
                 continue
 
@@ -147,16 +177,13 @@ def lex(data):
             else:
                 raise CompileError(line, start_col, message)
 
+        if b is not None and (b < 0x80 or b >= 0xC0):
+            col += 1
         i += 1
-        col += 1
 
     if tokens:
         lines.append(tokens)
     return lines
-
-
-def byte_text(b):
-    return chr(b) if 32 <= b <= 126 else f"\\x{b:02x}"
 
 
 if __name__ == "__main__":

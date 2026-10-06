@@ -1,2 +1,2 @@
-i32 total
-exit total
+3⃣ total
+🚪 total

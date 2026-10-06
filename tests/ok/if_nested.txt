@@ -1,11 +1,11 @@
-i32 mut a{0}
-bool c{false}
-if !c
+3⃣ 🔓 a ⟨ 0 ⟩
+❓ c ⟨ ❌ ⟩
+🤔 !c
 {
-    if true
+    🤔 ✅
     {
         a := a + 3
     }
     a := a + 4
 }
-exit a
+🚪 a
