@@ -1,0 +1,6 @@
+bool t{true}
+if t
+{
+    i32 inner{5}
+}
+exit inner

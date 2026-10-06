@@ -1,0 +1,3 @@
+bool mut b{true}
+b := false
+exit b

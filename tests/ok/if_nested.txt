@@ -1,0 +1,11 @@
+i32 mut a{0}
+bool c{false}
+if !c
+{
+    if true
+    {
+        a := a + 3
+    }
+    a := a + 4
+}
+exit a

@@ -1,0 +1,8 @@
+bool t{true}
+if t
+{
+    i32 a{1}
+    i32 a{2}
+    exit a
+}
+exit 0

@@ -1,0 +1,2223 @@
+AI usage log for Practice 5
+Tool: Claude Code (Opus 5.5)
+
+## Things I did differently
+(i.e. not accepted the first suggested approach from Claude):
+
+- the agent was ready to drop single_bang, i had it repurposed into the ! on i32 error test (not_on-int) so that error path still has a test
+- the agent's warmup question pointed at the handout's four blocks, i went with 5, entry plus the 4 the two ifs append
+- check.py, the agent asked if the course handed one out, i checked w03 w04 and git first and it never existed, only then the thin wrapper
+
+
+## Claude Code session transcript:
+
+<session>
+ ▐▛███▛█   Claude Code v2.1.289
+▝▜██████▀  Opus 5 · Claude Max
+ ▝▝   ▝▝   ~/Documents/kse-lang-compilers/kse-lang-compilers-project
+
+
+❯ /clear
+
+❯ /effort
+  ⎿  Set effort level to medium (saved as your default for new sessions):
+     Balanced approach with standard implementation and testing
+
+❯  read @w05-practice.pdf and the current compiler then make a plan for
+  practice 5 split into mine and yours like last time. before
+    you finalize grill me on the warmup program first, i want to answer the
+  frames and basic blocks counts myself and you tell me if im
+    wrong. also flag stuff in the handout that doesnt match our repo like
+  src/compiler.py and check.py
+  ⎿  Read w05-practice.pdf (141.1KB)
+
+⏺ I'll read the handout and the current compiler, then build the plan.
+
+  Listed 1 directory (ctrl+o to expand)
+
+⏺ Now the compiler and the handout.
+
+  Read 1 file (ctrl+o to expand)
+
+⏺ I have the compiler. Now the handout — the PDF read earlier returned only a
+  stub, so let me extract its text.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+⏺ Let me check the lexer so the plan's Task 1 lexer notes are accurate.
+
+  Read 1 file (ctrl+o to expand)
+
+⏺ I have everything. Before the plan, here are the grilling questions and the
+  handout mismatches.
+
+  Warm-up — your turn
+
+  1  i32 mut x{10}
+  2  if true
+  3  {
+  4      bool mut x{true}
+  5      if x
+  6      {
+  7          i64 mut x{20}
+  8          exit x
+  9      }
+  10     exit x
+  11 }
+  12 exit x
+
+  Q1. Line 8 exit x — which declaration does that x resolve to, and what does it
+  print?
+
+  Q2. Line 10 exit x — which declaration, what does it print, and is it reached?
+
+  Q3. Line 12 exit x — which declaration, and is it ever reached? (Careful:
+  "which declaration" and "reached" are independent questions.)
+
+  Q4. How many frames does the semantic pass push and pop over the whole
+  program? Say what each frame is.
+
+  Q5. How many basic blocks does the IR need? Name them. The handout says "four
+  blocks, each ending once" for this program — so if your count differs, one of
+  us is reading the if-lowering differently, and I want to see your reasoning
+  before I give mine.
+
+  Q6 (the one that decides whether you've got the week's point). Frames and
+  basic blocks are both "one per block" here — yet your two counts are not the
+  same number. Why not? What makes one of them not line up 1:1 with the { } in
+  the source?
+
+  Answer those and I'll tell you where you're right and where you're off.
+
+  Handout vs. our repo — mismatches to flag
+
+  Handout says: src/compiler.py (interface + submission)
+  We have: compiler.py at repo root
+  Call: Don't move it. Practices 2–4 were all graded at root, the
+  Makefile/run_tests.sh/README all point at root, and a move churns every path
+  for zero points. Mention it to the teacher if asked.
+  ────────────────────────────────────────
+  Handout says: python3 check.py "is green", shown twice as a deliverable
+  We have: No check.py in the repo, and never has been
+  Call: Genuine gap. It's probably the course's own regression harness, either
+  handed out separately or assumed from an earlier week we did our own way
+  (run_tests.sh + tests/ok/tests/err). Needs a decision — see below.
+  ────────────────────────────────────────
+  Handout says: tests/ok and tests/err ≥6 new programs each
+  We have: Already have this layout, 19 ok / 35 err
+  Call: Fine, just extend.
+  ────────────────────────────────────────
+  Handout says: .ast files for new programs
+  We have: We have 5 .ast files, compared by run_tests.sh
+  Call: Fine.
+  ────────────────────────────────────────
+  Handout says: opt -passes=mem2reg -S
+  We have: Not in the Makefile; opt should be in the image already (llvm
+  installed)
+  Call: Add a make phi target, verify opt exists in the container.
+
+  One more, not a repo mismatch but a handout detail worth noting: the lexer's !
+  now has to emit a bare ! token on non-=, which deletes our current
+  single_bang error — and tests/err/single_bang.expected will have to be removed
+  or repurposed. Same for the brace-pairing errors: unclosed_brace moves from a
+  lexer error to a parser error, possibly at a different position.
+
+  The check.py question is yours to answer: did the course hand out a check.py
+  (earlier week, Moodle, repo template)? If yes, I need it. If it doesn't exist
+  and never did, the options are to write one that prints a pass/fail table over
+  tests/ (a thin wrapper on run_tests.sh logic, so "check.py is green" has
+  something to point at) or to keep demoing ./run_tests.sh and explain the
+  substitution. I'd write the wrapper — it's cheap and the handout names it as a
+  deliverable twice.
+
+  Draft plan (MINE / YOURS) — to finalize after your answers
+
+  MINE (signature + location + IR shape only):
+
+  1. lexer.py — if/else into KEYWORDS; ! from PAIRS to a state that emits ne on
+     = else a bare not token and re-reads the byte; delete brace_col and both
+     brace errors; CATEGORIES entries for kw_if, kw_else, not.
+  2. grammar.ebnf — if, block, ! in factor, and the NL story in the prose.
+  3. compiler.py parser — line cursor (peek_line, next_line) beside the token
+     cursor; IfNode(cond, then_block, else_block), BlockNode(statements, exit),
+     NotNode(operand) with label/children/accept; parse_if, parse_block;
+     parse_statement dispatches kw_if; parse_program loses its per-line loop to
+     the line cursor.
+  4. SemanticChecker — self.scopes list of dicts replacing self.symbols;
+     visit_block push/pop; lookup walks reversed; duplicate check against
+     scopes[-1] only; visit_if requires bool; visit_not requires bool.
+  5. CodeGen — keep self.function; alloca_entry helper that saves the builder
+     position, positions at the start of entry, allocates, restores; visit_decl
+     calls it; visit_if emits then/else/merge with cbranch and the is_terminated
+     guard on self.builder.block; visit_block is just a walk (no IR structure
+     of its own); visit_not as xor with true or icmp — I'll pick when I see it.
+  6. visit_while + WhileNode for the additional task: cond/body/end, branch into
+     cond, back edge from body.
+  7. Tests: ≥6 tests/ok, ≥6 tests/err named per the handout's scheme, .ast for
+     the warm-up and the nested program, plus the three Practice-4 error tests
+     invalidated by the ! and brace changes.
+  8. Makefile — IMAGE := lcd-practice5, new phi target; README.md rewritten for
+     practice 5.
+  9. check.py — pending your answer above.
+
+  YOURS: the warm-up sheet (the six answers above), the check.py decision, and
+  the teacher demo.
+
+  I'll finalize once you've answered — particularly Q5/Q6, since the basic-block
+  count drives how I write visit_if.
+
+✻ Cooked for 56s · done Monday 11:17 PM
+
+※ recap: Goal: a MINE/YOURS plan for practice 5 (if/else, scopes, basic blocks). I've read the handout and compiler, drafted the plan, and flagged repo mismatches (src/compiler.py, missing check.py). Next: you answer the six warm-up questions so I can finalize. (disable recaps in /config)
+
+❯ warmup: line 8 is the i64 x from line 7 prints 20. line 10 is the bool x from
+  line 4, would print true but never reached cause inner if x is true and
+  exits. line 12 is the i32 x from line 1, never reached either. frames 2
+  pushed 2 popped, outer then and inner then, the global one isnt pushed.
+  blocks 5 total entry then merge then.1 merge.1, the handouts four is the
+  appended ones. they differ cause frames follow braces and blocks follow
+  jumps, merge has no braces and exit ends a block without ending a scope, line
+  10 is same frame as line 4 but different block
+
+  couple fixes to the plan. the mine yours split is off, you put everything
+  under mine and youre talking like youll write visit_if. mine is mine: grammar
+  rules, parser line cursor parse_if parse_block and ! in factor, the scope
+  stack, visit_if visit_not visit_while. give me only signature where it goes
+  and ir shape for those. yours is lexer, node classes, alloca_entry helper,
+  ebnf comments, tests expected ast, makefile, readme, check.py wrapper. also
+  handout says i32 x{5 stays at the same position just raised by the parser now
+  so unclosed_brace expected shouldnt change. repurpose single_bang as ! on
+  i32
+
+⏺ Let me verify the warm-up answers against the actual lowering before I grade
+  them.
+
+  Searched for 1 pattern, ran 2 shell commands (ctrl+o to expand)
+
+⏺ Both your corrections check out. Grading your warm-up first.
+
+  Warm-up — graded
+
+  Q1 — right. Line 8's x is the i64 from line 7, prints 20.
+
+  Q2 — right, and right for the right reason. Line 10 resolves to the bool from
+  line 4; exit on line 8 fires first, so line 10 is dead. The resolution is
+  still a real fact about the semantic pass even though codegen never runs it —
+  you kept those apart.
+
+  Q3 — right. Line 12 is the i32 from line 1, unreached. You also caught the
+  trap I set: resolution and reachability are answered separately.
+
+  Q4 — this is the one you got wrong. You said 2 pushed / 2 popped, "the global
+  one isn't pushed." The count is 3 pushed, 3 popped — two block frames plus the
+  global frame, and the global frame is pushed. self.scopes starts as [{}]; i32
+  mut x{10} on line 1 has to land in a frame, and lookup walks
+  reversed(self.scopes) — it needs a bottom frame to find line 1's x from line
+  12. Whether you call that a "push" is partly bookkeeping, but the handout asks
+  how many frames the pass pushes and pops, and if your answer is 2 you have no
+  frame for the top level. Where it stops being bookkeeping: the global frame
+  is the one frame that is never popped while any statement remains, so if you
+  implement visit_program as pushing nothing you'll special-case the top level
+  in lookup and in the duplicate check. Push it like any other, pop it at the
+  end: 3 and 3.
+
+  Q5 — right, and your "the handout's four is the appended ones" is the correct
+  reconciliation. 5 total: entry, then, merge for the outer if, then.1, merge.1
+  for the inner. The handout's "four blocks, each ending once" counts the blocks
+  append_basic_block creates (4: two then, two merge) and omits entry, which
+  the constructor already made. Neither if has an else, so no else block for
+  either — cbranch(cond, then_bb, merge_bb).
+
+  Worth knowing before you write visit_if: of those 5, merge.1 and merge end up
+  with no predecessor — the inner then ends in ret from line 8's exit, so
+  nothing branches to merge.1; and merge.1 is where line 10's exit emits its own
+  ret, so nothing branches to merge. Line 12's exit lands in merge. That is
+  exactly the handout's "when both arms exit, the merge block has no predecessor
+  — it still gets the program's last exit and stays valid." So every one of the
+  5 ends exactly once, three of them in ret.
+
+  Q6 — right, and the sharpest part of your answer. "Frames follow braces,
+  blocks follow jumps." Both of your examples are the ones that matter: merge
+  has no brace, and exit terminates a basic block without popping a scope. And
+  "line 10 is the same frame as line 4 but a different block" is the single
+  cleanest statement of the week's point — line 10 is in the outer block's frame
+  and in merge.1.
+
+  Score: 5 of 6, with the frame count the one to fix.
+
+  Your two plan corrections — both accepted
+
+  unclosed_brace: you're right, .expected doesn't change. i32 x{5 reports 1:6,
+  the {, and the handout says explicitly the parser reports it "at the same
+  position." The message text will change (it's the parser's wording now,
+  something like '{' is never closed), so the file still gets regenerated — but
+  the line:column stays 1:6. I'll keep the test and re-verify the column by
+  hand.
+
+  single_bang: repurposing it as ! on an i32 is better than deleting it. bool
+  b{!true} becomes a valid program under the new !, so the test has to go
+  somewhere; moving the filename to the Task 2 error (cannot apply '!' to i32)
+  keeps the error-path coverage instead of dropping it. I'll likely rename it to
+  match the handout's scheme (not_on-int.txt) rather than leave a file called
+  single_bang testing a type error — your call if you'd rather keep the name.
+
+  The split, corrected
+
+  I had overreached — visit_if was yours and I'd written it into my list.
+  Redone:
+
+  YOURS — I give signature, location, IR shape only
+
+  1. grammar.ebnf rules (the rules; my comments go in after)
+  Replace statement ::= decl | assign and factor:
+  statement ::= decl | assign | if
+  if        ::= "if" expr NL block [ "else" NL block ]
+  block     ::= "{" NL { statement } [ exit_stmt NL ] "}" NL
+  factor    ::= number | "true" | "false" | ident | "!" factor
+  block is non-empty — the handout states it in prose, and the parser enforces
+  it; decide whether you express that in the rule or leave it to prose like the
+  existing file does.
+  Add while ::= "while" expr NL block for the additional task.
+
+  2. Parser line cursor — compiler.py, in Parser, next to peek/eat/pos
+  def peek_line(self):      # the next line's token list, or None at the end
+  def next_line(self):      # makes it current: sets self.toks, self.pos = 0
+  Parser.__init__ already strips endline and holds self.lines; add a line index
+  beside self.pos. parse_program's current for toks in self.lines loop becomes a
+  while self.peek_line() is not None driven by the cursor, because parse_if has
+  to consume lines itself.
+
+  3. parse_if, parse_block — compiler.py, after parse_assign, before parse_exit
+  (callers after helpers, per the constants/helpers/callers/entry order)
+  def parse_if(self):    # current line is the "if" line; returns IfNode
+  def parse_block(self): # next line must be "{"; returns BlockNode
+  parse_statement gains if tok.kind == "kw_if": return self.parse_if() before
+  the ident branch.
+  Errors and their positions, from the handout — these are the ones graded:
+  - 4:1: expected '{' on its own line after 'if', got 'a' — at the first token
+    of the line that should have been {
+  - 2:6: unexpected '{' after the statement — if b {, falls out of the existing
+    after-the-statement check
+  - 2:1: empty block · 2:1: 'else' without an 'if' · 2:1: '{' is never closed
+  - 4:5: statement after 'exit' in the same block — at the statement, not the
+    exit (CLAUDE.md's rule)
+  - 1:8: expected '}', found end of line
+
+  4. ! in factor — parse_factor, compiler.py:196
+  A not token at the front returns NotNode(tok.line, tok.col,
+  self.parse_factor()) — recursive on factor, not on term, so !a == b compares
+  !a with b and !!a works.
+
+  5. The scope stack — SemanticChecker, compiler.py:293
+  self.symbols = {} becomes self.scopes = [{}].
+  def lookup(self, node, name)   # walks reversed(self.scopes), first hit
+  def declare(self, node)        # duplicate check against self.scopes[-1] only
+  def visit_block(self, node)    # append {}, walk statements, walk node.exit,
+  pop
+  visit_program pushes the global frame and pops it at the end — your Q4 miss,
+  so it's worth being deliberate here.
+  visit_decl (:319) swaps its node.name in self.symbols check for declare; the
+  message becomes variable 'a' is already declared in this block. visit_var
+  (:353) and visit_assign (:328) call the new lookup. The node.decl contract is
+  unchanged and is what makes shadowing work — three x, three decls, three
+  slots.
+
+  6. visit_if, visit_not, visit_while — CodeGen, compiler.py:369
+
+  visit_if(self, node) — IR shape: three blocks appended to the function (then,
+  else only when node.else_block, merge); one cbranch(cond, then_bb, else_bb or
+  merge_bb) which terminates the block the builder is currently in;
+  position_at_end(then_bb), walk the arm, then if not
+  self.builder.block.is_terminated: self.builder.branch(merge_bb); same for
+  else; finish position_at_end(merge_bb). Two traps the handout calls out and
+  I'd watch: cbranch needs block objects, and the terminator check reads
+  self.builder.block, not then_bb — a nested if has moved the builder to its own
+  merge, which is exactly your line-10 case.
+
+  visit_not(self, node) — one instruction on an i1. xor against i1 1 is the
+  usual choice; icmp_signed("==", v, false) also works. Pick one.
+
+  visit_while(self, node) — cond, body, end; an unconditional branch(cond_bb) to
+  get in (entry can't fall through), cbranch at the end of cond_bb, and
+  branch(cond_bb) at the end of body_bb under the same is_terminated guard — the
+  back edge.
+
+  visit_block(self, node) — walk statements then node.exit; no blocks, no
+  position changes. Scopes are the semantic pass's, basic blocks are visit_if's,
+  and visit_block is the proof they're different, which is your Q6.
+
+  You'll want self.function on CodeGen — __init__ (:374) currently drops main
+  into a local.
+
+  MINE
+
+  7. lexer.py — if/else in KEYWORDS; ! out of PAIRS into a state that emits ne
+     on = and otherwise a bare not token re-reading the byte (the IDENT move);
+     brace_col and both brace errors deleted; CATEGORIES for kw_if, kw_else,
+     not.
+  8. Node classes — IfNode, BlockNode, WhileNode, NotNode with
+     label/children/accept, labels matching the handout's dump (If, Block, Not).
+  9. alloca_entry helper in CodeGen — saves the builder position, positions at
+     the start of entry, allocates, restores; visit_decl calls it instead of
+     self.builder.alloca.
+  10. grammar.ebnf prose comments.
+  11. Tests — ≥6 tests/ok, ≥6 tests/err on the handout's naming and covering its
+      list; .ast for the warm-up and the nested program; regenerate
+      unclosed_brace.expected (message only, column stays 1:6) and repurpose
+      single_bang.
+  12. Makefile (IMAGE := lcd-practice5, a phi target for opt -passes=mem2reg
+      -S), README.md.
+  13. check.py wrapper — pending your answer.
+
+  Still open
+
+  Does a check.py exist? The handout names it as a deliverable twice ("python3
+  check.py is green", "the check.py table") and we've never had one. If the
+  course handed one out, point me at it. If not, I'll write a thin wrapper over
+  the run_tests.sh logic that prints a pass/fail table, so the demo has the
+  named thing to run.
+
+  Two notes I'd rather say now than after you've written code. The
+  exit-inside-a-block rule touches parse_program's current structure more than
+  it looks: exit is no longer "the last line of the program" but "the last line
+  of a block," and ProgramNode still wants a mandatory final exit — worth
+  deciding how parse_block and parse_program divide that before you start on
+  parse_if. And tests/ok/*.ast files exist for 5 programs and run_tests.sh diffs
+  them, so your parser changes will move those dumps if BlockNode ends up
+  anywhere in a straight-line program's tree; it shouldn't, but check the suite
+  early rather than at the end.
+
+  I haven't written anything yet. Say go on the split and answer the check.py
+  question, and I'll start on items 7–12.
+
+✻ Cooked for 1m 15s · done Monday 11:30 PM
+
+❯ go on 7 to 13, add self.function in __init__ as part of 9. check.py never
+  existed, its not in w03 w04 or git, write the thin wrapper and keep it small.
+  rename single_bang to not_on-int fine. one correction from me,
+  unclosed_brace does move, handout lists line 1:8 expected '}' found end of
+  line and thats literally i32 x{5, our Parser.error already gives that once
+  the lexer stops pairing braces, so regenerate it to 1:8 dont special case
+  1:6. after the lexer change run make tests and tell me what breaks and why
+  before touching any expected files. commit per item. ill figure out the
+  program exit vs block exit split myself
+
+⏺ Your correction is right and I had it backwards. Let me confirm the mechanism
+  before I write anything.
+
+  i32 x{5 — the lexer stops pairing, so expect("rbrace", "'}'") at
+  compiler.py:246 finds no token, falls to Parser.error's end-of-line branch:
+  last.col + len(last.text). Last token is 5 at column 7, so 7 + 1 = 8 → 1:8:
+  expected '}', found end of line. That's the handout's line verbatim. My 1:6
+  was the old lexer's brace column, which won't exist. Regenerating to 1:8.
+
+  Starting with item 7, the lexer.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+⏺ Now the lexer changes: if/else keywords, ! as a prefix operator, brace pairing
+  removed.
+
+⏺ Bash(python3 - <<'PY'
+      import re…)
+  ⎿  START, IDENT, NUMBER, PAIR, BANG = "START", "IDENT", "NUMBER", "PAIR",
+      "BANG"
+     … +137 lines (ctrl+o to expand)
+  ⎿  Updated lexer.py (+20 -19)
+      1 -START, IDENT, NUMBER, PAIR = "START", "IDENT", "NUMBER", "PAIR"
+      1 +START, IDENT, NUMBER, PAIR, BANG = "START", "IDENT", "NUMBER", "
+        +PAIR", "BANG"
+      2
+      3  KEYWORDS = {
+      4      "i32": "kw_i32",
+     ...
+       6      "bool": "kw_bool",
+       7      "mut": "kw_mut",
+       8      "exit": "kw_exit",
+       9 +    "if": "kw_if",
+      10 +    "else": "kw_else",
+      11 +    "while": "kw_while",
+      12      "true": "kw_true",
+      13      "false": "kw_false",
+      14  }
+     ...
+      18      "kw_bool": ("keyword", "typename"),
+      19      "kw_mut": ("keyword", "specifier"),
+      20      "kw_exit": ("keyword", "statement"),
+      21 +    "kw_if": ("keyword", "statement"),
+      22 +    "kw_else": ("keyword", "statement"),
+      23 +    "kw_while": ("keyword", "statement"),
+      24      "kw_true": ("constant", "boolean"),
+      25      "kw_false": ("constant", "boolean"),
+      26      "ident": ("identifier", None),
+     ...
+      33      "star": ("operator", "arithmetic"),
+      34      "eq": ("operator", "comparison"),
+      35      "ne": ("operator", "comparison"),
+      36 +    "not": ("operator", "logical"),
+      37      "endline": ("endline", None),
+      38  }
+      39  SINGLES = {
+     ...
+      46  PAIRS = {
+      47      ord(":"): ("assign", ":=", "':' is not followed by '='"),
+      48      ord("="): ("eq", "==", "expected '==' (a single '=' is not
+          an operator)"),
+      42 -    ord("!"): ("ne", "!=", "expected '!=' (a single '!' is not
+         -an operator)"),
+      49  }
+      50
+      51
+     ...
+      83      lines, tokens = [], []
+      84      state, start, start_col = START, 0, 1
+      85      line, col = 1, 1
+     … 57 more lines (ctrl+o to expand)
+
+⏺ The script left a stray blank line where PAIRS lost its entry. Let me fix that
+  and check the BANG state against the handout.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+⏺ is_alpha survived — my replace targeted text that had already shifted, so it
+  was a no-op and the original definition is still in place. Verifying the file
+  is coherent and the BANG state works.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+⏺ Lexer behaves correctly: ! alone becomes not, != still pairs, { spans lines
+  without error, and if is a keyword. One thing to check — is_alpha sits below
+  CATEGORIES but the definition order is constants→helpers→callers, so that's
+  correct.
+
+  Now make tests on the lexer change alone, as you asked — before touching any
+  .expected.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+⏺ make tests uses -it, which needs a TTY I don't have. Running the same
+  container command without -t.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+⏺ Exactly two failures, both predicted, and nothing else moved. Here's what
+  broke and why, before I touch any .expected:
+
+  1. err/single_bang — bool b{!true}
+  - was: 1:8: expected '!=' (a single '!' is not an operator) — the lexer's PAIR
+    state raised on ! not followed by =
+  - now: 1:8: expected a constant or a variable, got '!' — the lexer emits a not
+    token; parse_factor doesn't know ! yet, so it falls through to its
+    catch-all
+
+  This is the test you're repurposing. Note the error is currently the parser's
+  and will disappear entirely once you add ! to parse_factor in item 4 — at
+  which point bool b{!true} becomes a valid program. So this file can't keep its
+  current source; it becomes not_on-int.txt testing cannot apply '!' to i32 (a
+  Task 2 semantic error), which only passes after your visit_not. Until then
+  it'll fail either way, so I'll leave both the file and its .expected alone for
+  now and convert it in item 11 once your semantic pass exists.
+
+  2. err/unclosed_brace — i32 x{5
+  - was: 1:6: '{' is not closed before the end of the line — the lexer's
+    brace_col
+  - now: 1:8: expected '}', found end of line — your prediction, the handout's
+    line verbatim
+
+  1:8 is last.col + len(last.text) = 5 at column 7, plus one. The only change is
+  regenerating the .expected; I'll verify the column by hand against the source
+  when I do it in item 11, per CLAUDE.md.
+
+  The other 52 pass, so the brace unpairing didn't disturb any single-line
+  program and != still lexes everywhere it did.
+
+  Committing the lexer.
+
+  Ran 1 shell command (ctrl+o to expand)
+⏺ Item 8: the node classes. Labels match the handout's dump exactly (If, Block,
+  Not), and they go after ExitNode/with the expression nodes per the existing
+  file's order.
+
+⏺ Bash(python3 - <<'PY'
+      src = open('compiler.py').read()…)
+  ⎿  syntax ok
+     26:class Node:
+     42:class ProgramNode(Node):
+     … +16 lines (ctrl+o to expand)
+  ⎿  Updated compiler.py (+64 -0)
+       93          return visitor.visit_assign(self)
+       94
+       95
+       96 +class IfNode(StmtNode):
+       97 +    def __init__(self, line, col, cond, then_block, else_block
+          +):
+       98 +        super().__init__(line, col)
+       99 +        self.cond = cond
+      100 +        self.then_block = then_block
+      101 +        self.else_block = else_block
+      102 +
+      103 +    def label(self):
+      104 +        return "If"
+      105 +
+      106 +    def children(self):
+      107 +        return [self.cond, self.then_block] + ([self.else_bloc
+          +k] if self.else_block else [])
+      108 +
+      109 +    def accept(self, visitor):
+      110 +        return visitor.visit_if(self)
+      111 +
+      112 +
+      113 +class WhileNode(StmtNode):
+      114 +    def __init__(self, line, col, cond, body):
+      115 +        super().__init__(line, col)
+      116 +        self.cond = cond
+      117 +        self.body = body
+      118 +
+      119 +    def label(self):
+      120 +        return "While"
+      121 +
+      122 +    def children(self):
+      123 +        return [self.cond, self.body]
+      124 +
+      125 +    def accept(self, visitor):
+      126 +        return visitor.visit_while(self)
+      127 +
+      128 +
+      129  class ExitNode(Node):
+      130      def __init__(self, line, col, value):
+      131          super().__init__(line, col)
+     ...
+      141          return visitor.visit_exit(self)
+     … 42 more lines (ctrl+o to expand)
+
+⏺ Let me verify the dump shape against the handout's expected tree using a stub
+  parse, then commit.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+⏺ llvmlite is container-only, as CLAUDE.md says. Running the check inside the
+  image.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+⏺ Byte-identical to the handout's dump on page 2. The node shapes are right:
+  If's children are cond, then, else (else omitted when absent), and Block's are
+  statements then the optional exit.
+
+  Committing item 8, then item 9.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+⏺ Item 9: self.function in __init__ plus the alloca_entry helper, with
+  visit_decl calling it.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+⏺ self.emit binds self.builder.add at construction — those are bound methods on
+  the builder object, and since visit_if will only move that same builder rather
+  than replace it, the bindings stay valid. Worth flagging so you don't rebuild
+  the builder in visit_if.
+
+⏺ Bash(python3 - <<'PY'
+      src = open('compiler.py').read()…)
+  ⎿  class CodeGen:
+         def __init__(self):
+             self.module = ir.Module(name="practice5")
+     … +27 lines (ctrl+o to expand)
+  ⎿  Updated compiler.py (+12 -4)
+      432
+      433  class CodeGen:
+      434      def __init__(self):
+      435 -        self.module = ir.Module(name="practice4")
+      435 +        self.module = ir.Module(name="practice5")
+      436          self.module.triple = llvm.get_default_triple()
+      437
+      438 -        main = ir.Function(self.module, ir.FunctionType(I32, [
+          -]), name="main")
+      439 -        self.builder = ir.IRBuilder(main.append_basic_block("e
+          -ntry"))
+      438 +        self.function = ir.Function(self.module, ir.FunctionTy
+          +pe(I32, []), name="main")
+      439 +        self.entry = self.function.append_basic_block("entry")
+      440 +        self.builder = ir.IRBuilder(self.entry)
+      441          self.printf = ir.Function(
+      442              self.module,
+      443              ir.FunctionType(I32, [ir.PointerType(I8)], var_arg
+           =True),
+     ...
+      451              "*": self.builder.mul,
+      452          }
+      453
+      454 +    def alloca_entry(self, type, name):
+      455 +        here = self.builder.block, self.builder._anchor
+      456 +        self.builder.position_at_start(self.entry)
+      457 +        slot = self.builder.alloca(type, name=name)
+      458 +        self.builder.block, self.builder._anchor = here
+      459 +        return slot
+      460 +
+      461      def coerce(self, value, have, want):
+      462          if have == "i32" and want == "i64":
+      463              return self.builder.sext(value, I64, name="wide")
+     ...
+      489
+      490      def visit_decl(self, node):
+      491          value = self.coerce(node.init.accept(self), node.init.
+           type, node.type_name)
+      484 -        slot = self.builder.alloca(IR_TYPES[node.type_name], n
+          -ame=node.name)
+      492 +        slot = self.alloca_entry(IR_TYPES[node.type_name], nod
+          +e.name)
+      493          self.builder.store(value, slot)
+      494          self.slots[node] = slot
+      495
+
+⏺ I used self.builder._anchor, a private llvmlite attribute. llvmlite ships a
+  public context manager for exactly this — let me check and switch to it.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+⏺ goto_entry_block is exactly this helper, and it's public. Rewriting
+  alloca_entry to use it.
+
+⏺ Bash(python3 - <<'PY'
+      src = open('compiler.py').read()…)
+  ⎿  class CodeGen:
+         def __init__(self):
+             self.module = ir.Module(name="practice5")
+     … +26 lines (ctrl+o to expand)
+  ⎿  Updated compiler.py (+3 -7)
+      436          self.module.triple = llvm.get_default_triple()
+      437
+      438          self.function = ir.Function(self.module, ir.FunctionTy
+           pe(I32, []), name="main")
+      439 -        self.entry = self.function.append_basic_block("entry")
+      440 -        self.builder = ir.IRBuilder(self.entry)
+      439 +        self.builder = ir.IRBuilder(self.function.append_basic
+          +_block("entry"))
+      440          self.printf = ir.Function(
+      441              self.module,
+      442              ir.FunctionType(I32, [ir.PointerType(I8)], var_arg
+           =True),
+     ...
+      451          }
+      452
+      453      def alloca_entry(self, type, name):
+      455 -        here = self.builder.block, self.builder._anchor
+      456 -        self.builder.position_at_start(self.entry)
+      457 -        slot = self.builder.alloca(type, name=name)
+      458 -        self.builder.block, self.builder._anchor = here
+      459 -        return slot
+      454 +        with self.builder.goto_entry_block():
+      455 +            return self.builder.alloca(type, name=name)
+      456
+      457      def coerce(self, value, have, want):
+      458          if have == "i32" and want == "i64":
+
+⏺ Let me verify the suite still passes and that allocas land in the entry block.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+⏺ Still the same 52 pass / 2 known failures, so the helper changed nothing for
+  straight-line programs.
+
+  One observation worth flagging now, since it affects whether Task 3's mem2reg
+  demo works: the allocas are interleaved with stores rather than grouped at the
+  top. That's fine today because everything is in entry anyway, but
+  goto_entry_block positions at the entry block's start, so once visit_if moves
+  the builder into then, a declaration inside the arm will insert its alloca
+  above all existing instructions in entry — correct placement, and LLVM only
+  requires allocas to be in the entry block, not contiguous. mem2reg will
+  promote them either way. No action needed; just don't be surprised by the
+  ordering when you read output.ll.
+
+  Committing item 9.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+⏺ Item 10: the grammar comments. Your rules are item 1 and yours to write, so
+  I'm adding only the prose — and leaving the rule block untouched for you.
+
+⏺ Bash(python3 - <<'PY'
+      src = open('grammar.ebnf').read()…)
+  ⎿  (* The language in EBNF, with the Practice 5 branches, blocks and '!'.
+        Quoted words are terminals: tokens the lexer emits, with the same t
+     ext.
+     … +53 lines (ctrl+o to expand)
+  ⎿  Updated grammar.ebnf (+20 -3)
+      1 -(* The language in EBNF, with the Practice 4 types and compariso
+        -n.
+      1 +(* The language in EBNF, with the Practice 5 branches, blocks an
+        +d '!'.
+      2     Quoted words are terminals: tokens the lexer emits, with the
+         same text.
+      3     ident and number are terminals too; how they are spelled is l
+         exer.py's rule. *)
+      4
+     ...
+      28     one statement per line and blank lines cost no rule here.
+      29
+      30     program is what rejects a statement after exit and a program
+           without one:
+      31 -   exit_stmt sits outside the repetition, so it is required and
+         - it is last. *)
+      31 +   exit_stmt sits outside the repetition, so it is required and
+         + it is last.
+      32 +   A block says the same thing one level down, which is why NL
+         +is written out
+      33 +   from Practice 5 on: a statement used to be a line, but an if
+         + is several, so
+      34 +   the parser needs a line cursor beside its token cursor and t
+         +he grammar needs
+      35 +   to say where the line ends. '{', '}' and else each stand alo
+         +ne on theirs.
+      36 +
+      37 +   Braces are the parser's now, not the lexer's. 'i32 x{5' is s
+         +till an error at
+      38 +   the same place, but it is expect('}') that reports it at the
+         + end of the line
+      39 +   rather than a lexer that refused to let '{' outlive its line
+         +. *)
+      40
+      41  (* expr allows at most one comparison, and it binds weaker than
+           arithmetic:
+      42     the second arith is the only place "==" or "!=" can appear,
+          so a second
+     ...
+      44
+      45     Types are not in the grammar: i32 a{true} parses. Left out o
+          n purpose,
+      46     checked in the semantic pass: declared before use, declared
+          once, mut
+      39 -   before :=, and the type rules. *)
+      47 +   before :=, and the type rules. A bool condition and a bool u
+         +nder '!' are
+      48 +   two more of the same kind.
+      49 +
+      50 +   '!' is in factor and recurses on factor, so it binds tighter
+         + than every
+      51 +   operator: !a == b compares !a with b, and !!a is a factor tw
+         +ice over.
+      52 +
+      53 +   Scopes are not in the grammar either. A block is one rule he
+         +re and one
+      54 +   frame in the semantic pass and one builder position in codeg
+         +en, and those
+      55 +   three do not line up: merge belongs to no brace, and an exit
+         + ends a basic
+      56 +   block without popping a frame. *)
+
+⏺ The prose is in and the rule block (lines 5–23) is untouched for you.
+  Committing.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+⏺ Item 13 next (the check.py wrapper), because item 11's tests are easier to
+  write once there's a runner — and the new tests can't pass until your parser
+  and semantic pass land anyway.
+
+  First confirming check.py truly never existed, as you said.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+⏺ Confirmed: never in git history, never mentioned in the w03 or w04 handouts.
+  It appears for the first time in w05, so it's a new deliverable the handout
+  assumes without providing. Writing the thin wrapper.
+
+  The handout asks for a "table", so it prints one row per test with a total —
+  and it reuses run_tests.sh's logic rather than duplicating the compile/run
+  rules.
+
+⏺ Bash(cat > check.py <<'PY'
+      import subprocess…)
+  ⎿  PASS  ok/i64_widen.txt               Program exit with result 98
+     PASS  ok/init_op.txt                 Program exit with result 36
+     PASS  ok/left_assoc.txt              Program exit with result 5
+     … +9 lines (ctrl+o to expand)
+  ⎿  Created check.py (+57 -0)
+       1 +import subprocess
+       2 +import sys
+       3 +from pathlib import Path
+       4 +
+       5 +ROOT = Path(__file__).parent
+       6 +
+       7 +
+       8 +def run(src):
+       9 +    out = ROOT / "output.check.ll"
+      10 +    out.unlink(missing_ok=True)
+      11 +    expected = src.with_suffix(".expected").read_text().rstrip(
+         +"\n")
+      12 +    compiled = subprocess.run(
+      13 +        [sys.executable, "compiler.py", str(src), str(out)],
+      14 +        cwd=ROOT, capture_output=True, text=True,
+      15 +    )
+      16 +
+      17 +    if src.parent.name == "err":
+      18 +        if compiled.returncode == 0:
+      19 +            return False, "compiled, expected an error"
+      20 +        if out.exists():
+      21 +            out.unlink()
+      22 +            return False, "wrote an output file"
+      23 +        actual = compiled.stderr.rstrip("\n")
+      24 +    else:
+      25 +        if compiled.returncode != 0:
+      26 +            return False, compiled.stderr.strip().splitlines()[
+         +-1]
+      27 +        ran = subprocess.run(["lli", str(out)], cwd=ROOT, captu
+         +re_output=True, text=True)
+      28 +        out.unlink(missing_ok=True)
+      29 +        if ran.returncode != 0:
+      30 +            return False, "lli failed"
+      31 +        actual = ran.stdout.rstrip("\n")
+      32 +
+      33 +    if actual != expected:
+      34 +        return False, f"got {actual!r}"
+      35 +    return True, actual
+      36 +
+      37 +
+      38 +def main():
+      39 +    tests = sorted(ROOT.glob("tests/*/*.txt"))
+      40 +    if not tests:
+     … 17 more lines (ctrl+o to expand)
+
+⏺ 52/54 — the same two known failures. Let me confirm it reports them properly
+  and leaves no stray output file.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+⏺ Clean — no stray output.check.ll, and the FAIL rows show the actual message so
+  the table is diagnosable. One difference from run_tests.sh worth knowing:
+  check.py doesn't diff the .ast files, since the handout only asks for a green
+  table. run_tests.sh remains the stricter runner, and I'd keep demoing both.
+
+  Committing item 13.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+⏺ Item 12: Makefile and README. The Makefile first — image rename, a phi target,
+  and fixing the -it problem I hit.
+
+⏺ Bash(python3 - <<'PY'
+      src = open('Makefile').read()…)
+  ⎿  IMAGE := lcd-practice5
+     DOCKER := docker run --rm $(if $(shell test -t 0 && echo y),-it) -v "$
+     (CURDIR)":/work -w /work $(IMAGE)
+     … +39 lines (ctrl+o to expand)
+  ⎿  Updated Makefile (+12 -4)
+      1 -IMAGE := lcd-practice4
+      2 -DOCKER := docker run --rm -it -v "$(CURDIR)":/work -w /work $(IM
+        -AGE)
+      1 +IMAGE := lcd-practice5
+      2 +DOCKER := docker run --rm $(if $(shell test -t 0 && echo y),-it)
+        + -v "$(CURDIR)":/work -w /work $(IMAGE)
+      3
+      4 -.PHONY: image shell tokens ast run build tests clean
+      4 +.PHONY: image shell tokens ast run build phi tests check clean
+      5
+      6  image:
+      7          docker build -t $(IMAGE) .
+     ...
+      25                  clang -fPIE output.o -o program && \
+      26                  ./program'
+      27
+      28 +phi:
+      29 +        $(DOCKER) bash -c '\
+      30 +                python3 compiler.py input.txt output.ll && \
+      31 +                opt -passes=mem2reg -S output.ll'
+      32 +
+      33  tests:
+      34          $(DOCKER) ./run_tests.sh
+      35
+      36 +check:
+      37 +        $(DOCKER) python3 check.py
+      38 +
+      39  clean:
+      32 -        rm -f output.ll output.o program
+      40 +        rm -f output.ll output.o output.check.ll program
+⏺ Now build the renamed image and verify opt exists plus the TTY fix works.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+⏺ opt is present (LLVM 18.1.3) and the TTY conditional works — make check now
+  runs without a TTY and still exits non-zero on failure, which is correct. Let
+  me verify make phi end-to-end using the handout's exact phi program, since
+  that's a graded demo.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+⏺ make phi works — mem2reg promoted every alloca away. There's no phi here
+  because the program is straight-line (one block, nothing to merge); the
+  handout's phi appears only once visit_if creates two predecessors. That's the
+  point of the demo, and it'll show up when you write item 6.
+
+  Committing the Makefile, then the README.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+⏺ Now item 11, the tests. These are the ones that can't pass until your parser
+  and semantic pass exist, so I'll write the sources and hold off generating
+  .expected for the new ones — except unclosed_brace, which is passing-adjacent
+  now and whose column you've already pinned at 1:8.
+
+  Let me regenerate that one first and verify the column by hand.
+
+⏺ Bash(docker run --rm -v "$PWD":/work -w /work lcd-practice5 python3
+      compiler.py tests/err/unclosed_brace.txt /tmp/o.ll
+      2>tests/err/unclosed_brace.expected; cat tests…)
+  ⎿  compilation error: line 1:8: expected '}', found end of line
+     --- source with columns ---
+     i32 x{5
+     ....+..
+  ⎿  Updated tests/err/unclosed_brace.expected (+1 -1)
+      1 -compilation error: line 1:6: '{' is not closed before the end of
+        - the line
+      1 +compilation error: line 1:8: expected '}', found end of line
+
+⏺ Column verified by hand: i32 x{5 is 7 bytes, so columns 1–7 are i…5, and
+  column 8 is one past the last token — the place a } should have been typed.
+  Matches the handout's 1:8 exactly. This test now passes.
+
+  Now the new test programs. The handout names 12 required cases plus the two
+  example programs.
+
+⏺ Bash(cd tests/ok && \
+      printf 'i32 mut a{10}\nbool b{true}\nif b\n{\n    a := a + 5\n}\nelse\n{\n
+         a := a - 5\n}\nexit a\n' > if-else_basic.txt && \…)
+  ⎿  27
+     if-else_basic.txt
+     if-else_both-arms-assign.txt
+     … +6 lines (ctrl+o to expand)
+  ⎿  Created tests/ok/if-else_basic.txt (+11 -0)
+       1 +i32 mut a{10}
+       2 +bool b{true}
+       3 +if b
+       4 +{
+       5 +    a := a + 5
+       6 +}
+       7 +else
+       8 +{
+       9 +    a := a - 5
+      10 +}
+      11 +exit a
+  ⎿  Created tests/ok/if-else_both-arms-assign.txt (+11 -0)
+       1 +i32 mut r{0}
+       2 +i64 n{3}
+       3 +if n == 3
+       4 +{
+       5 +    r := 1
+       6 +}
+       7 +else
+       8 +{
+       9 +    r := 2
+      10 +}
+      11 +exit r
+  ⎿  Created tests/ok/if_exit-in-arm.txt (+7 -0)
+      1 +i32 mut a{5}
+      2 +bool t{true}
+      3 +if t
+      4 +{
+      5 +    exit a
+      6 +}
+      7 +exit 0
+  ⎿  Created tests/ok/if_nested.txt (+11 -0)
+       1 +i32 mut a{0}
+       2 +bool c{false}
+       3 +if !c
+       4 +{
+       5 +    if true
+       6 +    {
+       7 +        a := a + 3
+       8 +    }
+       9 +    a := a + 4
+      10 +}
+      11 +exit a
+  ⎿  Created tests/ok/if_no-else.txt (+6 -0)
+      1 +i32 mut a{1}
+      2 +if a == 1
+      3 +{
+      4 +    a := 7
+      5 +}
+      6 +exit a
+  ⎿  … 3 more files changed
+
+⏺ 8 new ok programs (handout asks ≥6). Now the error programs.
+
+⏺ Bash(cd /Users/vladyslav.prudius/Documents/kse-lang-compilers/kse-lang-compile
+      rs-project/tests/err && \
+      printf 'i32 a{1}\nif a\n{\n    exit a\n}\nexit a\n' > if_cond…)
+  ⎿   D err/single_bang.expected
+      D err/single_bang.txt
+      M err/unclosed_brace.expected
+     … +19 lines (ctrl+o to expand)
+  ⎿  Created tests/err/block_never-closed.txt (+5 -0)
+      1 +bool b{true}
+      2 +if b
+      3 +{
+      4 +    exit 1
+      5 +exit 0
+  ⎿  Created tests/err/block_statement-after-exit.txt (+7 -0)
+      1 +bool b{true}
+      2 +if b
+      3 +{
+      4 +    exit 1
+      5 +    i32 a{2}
+      6 +}
+      7 +exit 0
+  ⎿  Created tests/err/else_without-if.txt (+6 -0)
+      1 +bool b{true}
+      2 +else
+      3 +{
+      4 +    exit 1
+      5 +}
+      6 +exit 0
+  ⎿  Created tests/err/if_brace-on-if-line.txt (+5 -0)
+      1 +bool b{true}
+      2 +if b {
+      3 +    exit 1
+      4 +}
+      5 +exit 0
+  ⎿  Created tests/err/if_cond-not-bool.txt (+6 -0)
+      1 +i32 a{1}
+      2 +if a
+      3 +{
+      4 +    exit a
+      5 +}
+      6 +exit a
+  ⎿  … 7 more files changed
+
+⏺ 10 new error programs. Every case from the handout's list is covered. Let me
+  map them so you can check nothing's missing, and verify which .expected I can
+  legitimately generate now.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+⏺ As expected — all 10 fail with 'if' does not start a statement because
+  parse_statement doesn't dispatch kw_if yet. I'm deliberately not generating
+  these .expected files. Generating them now would bake in the wrong error and,
+  per CLAUDE.md, a wrong line:column passes the suite silently. They need your
+  parser and semantic pass first, then generation + hand-verification of each
+  column.
+
+  Here's the mapping against the handout's required list, and the expected
+  message each .expected should hold once your code lands:
+
+  Handout case: non-bool condition
+  File: err/if_cond-not-bool
+  Expected message (handout's wording): 2:1: the condition of 'if' must be bool,
+
+  got i32
+  Reported by: your visit_if
+  ────────────────────────────────────────
+  Handout case: ! on an integer
+  File: err/not_on-int
+  Expected message (handout's wording): 2:8: cannot apply '!' to i32
+  Reported by: your visit_not
+  ────────────────────────────────────────
+  Handout case: block var used after its block
+  File: err/scope_use-after-block
+  Expected message (handout's wording): 6:6: variable 'inner' is used before its
+
+  declaration
+  Reported by: your lookup
+  ────────────────────────────────────────
+  Handout case: redeclaration in same block
+  File: err/scope_redeclare-in-block
+  Expected message (handout's wording): 5:9: variable 'a' is already declared in
+
+  this block
+  Reported by: your declare
+  ────────────────────────────────────────
+  Handout case: { on the if line
+  File: err/if_brace-on-if-line
+  Expected message (handout's wording): 2:6: unexpected '{' after the statement
+  Reported by: existing check
+  ────────────────────────────────────────
+  Handout case: empty block
+  File: err/if_empty-block
+  Expected message (handout's wording): 3:1: empty block
+  Reported by: your parse_block
+  ────────────────────────────────────────
+  Handout case: —
+  File: err/block_statement-after-exit
+  Expected message (handout's wording): 5:5: statement after 'exit' in the same
+  block
+  Reported by: your parse_block
+  ────────────────────────────────────────
+  Handout case: —
+  File: err/else_without-if
+  Expected message (handout's wording): 2:1: 'else' without an 'if'
+  Reported by: your parse_statement/parse_if
+  ────────────────────────────────────────
+  Handout case: —
+  File: err/block_never-closed
+  Expected message (handout's wording): 3:1: '{' is never closed
+  Reported by: your parse_block
+  ────────────────────────────────────────
+  Handout case: —
+  File: err/scope_assign-inner-type
+  Expected message (handout's wording): 5:5: cannot assign to 'x' of type bool
+  with a value of type i32
+  Reported by: existing check_assignable, inner decl
+
+  The last one is the handout's fifth Task-2 error and the sharpest test of your
+  scope stack: it must resolve to the inner x, not an outer one. Note the
+  handout's wording there — cannot assign to 'x' of type bool with a value of
+  type i32 — differs from our current check_assignable format (cannot assign to
+  'x' of type bool... vs ours which produces cannot assign to 'x' of type bool
+  with a value of type i32 only if what includes the type). Worth checking when
+  you get there; ours currently emits cannot assign to 'x' of type i32 style
+  without the declared type. That's a message-format decision in your
+  visit_assign.
+
+  Three of the ok programs' .expected I also can't generate yet. Let me record
+  what they must print, and commit the sources.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+⏺ Now the README (last of item 12).
+
+  Listed 1 directory (ctrl+o to expand)
+
+⏺ Bash(python3 - <<'PY'
+      src = open('README.md').read()…)
+  ⎿  # Practice 5 — if/else, scopes and basic blocks
+
+     A compiler for a small language of `i32`, `i64` and `bool`. `lexer.py`
+     … +41 lines (ctrl+o to expand)
+  ⎿  Updated README.md (+9 -1)
+      1 -# Practice 4 — types, comparisons and a semantic pass
+      1 +# Practice 5 — if/else, scopes and basic blocks
+      2
+      3  A compiler for a small language of `i32`, `i64` and `bool`. `lex
+         er.py` turns
+      4  source bytes into typed tokens; `Parser` in `compiler.py` reads
+         those tokens and
+     ...
+       7  LLVM IR through the `llvmlite.ir` builder. `grammar.ebnf` is th
+          e grammar the
+       8  parser implements, one method per rule.
+       9
+      10 +This practice adds the first branch. A block brings two things
+         +with it that are
+      11 +easy to confuse: a scope in the semantic pass and a basic block
+         + in the IR.
+      12 +Keeping them apart is the week's point — see **Scopes are not b
+         +asic blocks**.
+      13 +
+      14  ## Running
+      15
+      16  ```sh
+      17  python3 compiler.py input.txt output.ll   # compile
+      18  python3 compiler.py --ast input.txt       # print the tree, wri
+          te nothing
+      19  lli output.ll                             # run
+      20 +opt -passes=mem2reg -S output.ll          # the same IR, alloca
+         +s promoted
+      21  ```
+      22
+      23  Or through the full toolchain:
+     ...
+      33  python3 lexer.py lexer_demo.txt
+      34  ```
+      35
+      36 +Every one of these has a `make` target: `make run`, `make ast`,
+         + `make build`,
+      37 +`make phi`, `make tokens`, `make tests`, `make check`.
+      38 +
+      39  Errors go to stderr as one line with a 1-based `line:column`, a
+          nd nothing is
+      40  written to the output file:
+      41
+
+⏺ Now the substantive sections: the language additions, the scopes-vs-blocks
+  section, and the test counts.
+
+⏺ Bash(python3 - <<'PY'
+      src = open('README.md').read()…)
+  ⎿  14:## Running
+     49:## The phases
+     90:## The language
+     … +4 lines (ctrl+o to expand)
+  ⎿  Updated README.md (+48 -1)
+      55  walk     tree   -> LLVM IR                          CodeGen
+      56  ```
+      57
+      58 +A statement used to be a line. An `if` is several, so the parse
+         +r has a line
+      59 +cursor beside its token cursor: `parse_statement` consumes one
+         +line, or — for an
+      60 +`if` — the condition line, the `{` line, every line of the bloc
+         +k and the `}`
+      61 +line. Braces moved with it. The Practice 2 rule that `{` must c
+         +lose on its line
+      62 +is gone from the lexer; `{` and `}` are plain tokens and the pa
+         +rser pairs them,
+      63 +which is what lets a block span lines. `i32 x{5` is still an er
+         +ror at the same
+      64 +place, now `1:8: expected '}', found end of line`.
+      65 +
+      66  The parser is recursive descent, written by hand: `peek`, `eat`
+          , `expect`, and
+      67  one method per grammar rule. One token of look-ahead decides ev
+          ery choice. The
+      68  tree holds names, numbers, flags and child nodes — never a toke
+          n — so every node
+     ...
+       97  bool b{x == y}        == and != give a bool; one comparison pe
+           r expression
+       98  i64 z{2 + 3 * y}      initialiser: any chain of +, - and * ove
+           r constants and variables
+       99  y := x * 2 - 1        assignment; only a mut variable may be a
+           ssigned
+       92 -exit y                prints "Program exit with result <value>
+          -"; the last line
+      100 +bool c{!b}            ! negates a bool
+      101 +exit y                prints "Program exit with result <value>
+          +"
+      102 +```
+      103 +
+      104 +An `if` and its condition stand on one line; `{`, `}` and `els
+          +e` stand alone on
+      105 +theirs; `else` is optional; a block holds at least one line. B
+          +locks nest, since
+      106 +an `if` is a statement. A block may end with `exit` as its las
+          +t line, and
+      107 +nothing follows an `exit` inside the same block.
+      108 +
+      109 +```
+      110 +i32 mut a{10}
+      111 +bool b{true}
+      112 +if b
+      113 +{
+      114 +    a := a + 5
+      115 +}
+      116 +else
+      117 +{
+      118 +    a := a - 5
+      119 +}
+      120 +exit a
+      121 +```
+     … 21 more lines (ctrl+o to expand)
+
+⏺ Now the scopes-vs-blocks section, the type rules addition, and the counts.
+
+⏺ Bash(python3 - <<'PY'
+      src = open('README.md').read()…)
+  ⎿  14:## Running
+     49:## The phases
+     90:## The language
+     … +6 lines (ctrl+o to expand)
+  ⎿  Updated README.md (+79 -4)
+      153  - `== !=` take two integers of any widths or two bools; the re
+           sult is `bool`.
+      154  - The one conversion is `i32 → i64`, in an initialiser or an a
+           ssignment. Nothing
+      155    narrows, and a bool never meets an integer.
+      156 +- The condition of an `if` or a `while` is a bool, and `!` tak
+          +es a bool.
+      157
+      158  `CodeGen` turns every widening the checker allowed into an exp
+           licit `sext` via
+      159  one `coerce` helper, called from the initialiser, the assignme
+           nt, both operands
+     ...
+      161  `icmp` on operands of equal width; integers are printed as `i6
+           4` with `%lld`,
+      162  bools by a `select` between two complete format strings.
+      163
+      164 +## Scopes are not basic blocks
+      165 +
+      166 +A block is one rule in the grammar, one frame in the semantic
+          +pass and one
+      167 +builder position in the generator, and those three do not line
+          + up. The symbol
+      168 +table is a stack of frames: a block pushes one on entry and po
+          +ps it on exit, a
+      169 +declaration goes into the top frame, and only the top frame is
+          + checked for a
+      170 +duplicate — so an outer name may be declared again inside, wit
+          +h any type. A use
+      171 +walks the frames from the top down and takes the first hit; a
+          +name whose frame
+      172 +has been popped is "used before its declaration" like any othe
+          +r unknown name.
+      173 +
+      174 +```
+      175 +i32 mut x{10}
+      176 +if true
+      177 +{
+      178 +    bool mut x{true}
+      179 +    if x
+      180 +    {
+      181 +        i64 mut x{20}
+      182 +        exit x
+      183 +    }
+      184 +    exit x
+      185 +}
+      186 +exit x
+      187 +```
+      188 +
+      189 +Three `x`, three declarations, three types, three slots. The `
+          +exit` in the inner
+      190 +block prints 20; the one after it would read the `bool`, and t
+          +he last line would
+      191 +read the `i32`, but neither is reached. Three frames are pushe
+          +d and popped — the
+      192 +two blocks and the global one — while the IR needs five basic
+          +blocks: `entry`,
+      193 +then a `then` and a `merge` for each `if`. Neither `if` has an
+          + `else`, so neither
+     … 75 more lines (ctrl+o to expand)
+
+⏺ No stale practice4 or old counts left. Let me verify the layout section and
+  check the README's claims against reality.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+⏺ The lexer state list is stale — it now has a BANG state. Fixing that.
+
+⏺ Bash(python3 - <<'PY'
+      src = open('README.md').read()…)
+  ⎿  278:lexer.py        byte-by-byte state machine: START, IDENT, NUMBER,
+     PAIR, BANG
+     1953bb2 docs [practice-5]: README for branches, scopes and basic block
+     s
+  ⎿  Updated README.md (+1 -1)
+      275  ## Layout
+      276
+      277  ```
+      278 -lexer.py        byte-by-byte state machine: START, IDENT, NUMB
+          -ER, PAIR
+      278 +lexer.py        byte-by-byte state machine: START, IDENT, NUMB
+          +ER, PAIR, BANG
+      279  grammar.ebnf    the grammar, one rule per parse method
+      280  compiler.py     the AST classes, the parser, the semantic pass
+           , the codegen walk
+      281  tests/ok/       27 programs that run, some with expected trees
+
+⏺ Final verification that I left the tree in the state I claim.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+⏺ Items 7–13 are done, eight commits, one per item. Working tree clean.
+
+  Suite state: 53 passed, 18 failed. The 18 are the 18 new test programs,
+  failing with missing .expected — by design, as explained in the commit. Every
+  pre-existing test passes, including unclosed_brace at its new 1:8. The old
+  count was 52 passed / 2 failed; unclosed_brace moved into the passing column,
+  and single_bang is gone.
+
+  What I did
+
+  ┌───────────────┬────────────┬───────────────────────────────────────────┐
+  │     Item      │   Commit   │                   Notes                   │
+  ├───────────────┼────────────┼───────────────────────────────────────────┤
+  │               │            │ if/else/while keywords, ! in its own BANG │
+  │ 7 lexer       │ 10cd905    │  state, brace pairing + brace_col + both  │
+  │               │            │ brace errors deleted                      │
+  ├───────────────┼────────────┼───────────────────────────────────────────┤
+  │               │            │ IfNode, WhileNode, BlockNode, NotNode;    │
+  │ 8 nodes       │ f4d6c58    │ dump verified byte-identical to the       │
+  │               │            │ handout's page-2 tree                     │
+  ├───────────────┼────────────┼───────────────────────────────────────────┤
+  │ 9 codegen     │            │ self.function, alloca_entry via           │
+  │ scaffolding   │ 19c4a1e    │ llvmlite's public goto_entry_block,       │
+  │               │            │ visit_decl calls it                       │
+  ├───────────────┼────────────┼───────────────────────────────────────────┤
+  │ 10 grammar    │ 406cdde    │ comments only — rules left untouched for  │
+  │ prose         │            │ you                                       │
+  ├───────────────┼────────────┼───────────────────────────────────────────┤
+  │               │            │ 8 ok + 10 err, handout naming;            │
+  │ 11 tests      │ 3b8d215    │ unclosed_brace → 1:8; single_bang →       │
+  │               │            │ not_on-int                                │
+  ├───────────────┼────────────┼───────────────────────────────────────────┤
+  │ 12 Makefile + │ 70a27a4,   │ lcd-practice5, make phi, make check, TTY  │
+  │  README       │ 1953bb2    │ fix                                       │
+  ├───────────────┼────────────┼───────────────────────────────────────────┤
+  │ 13 check.py   │ 932fb2f    │ thin wrapper, pass/fail table             │
+  └───────────────┴────────────┴───────────────────────────────────────────┘
+
+  Three things worth your attention before you start:
+
+  1. check.py never existed — confirmed absent from git history and from both
+     the w03 and w04 handouts. It's a new w05 deliverable the handout assumes
+     without shipping. Mine prints the table; run_tests.sh stays stricter (it
+     diffs .ast).
+  2. self.emit binds self.builder.add at construction (compiler.py:448). Those
+     bindings stay valid as long as visit_if moves the builder with
+     position_at_end rather than constructing a new IRBuilder. If you replace
+     the builder, + - * silently emit into the old block.
+  3. One message-format question for your visit_assign. The handout's fifth
+     Task-2 error reads cannot assign to 'x' of type bool with a value of type
+     i32. Our check_assignable builds that string as cannot {what} of type
+     {want} with a value of type {have} with what = f"assign to '{name}'" —
+     which produces exactly the handout's wording. So it already matches; I was
+     wrong to flag a discrepancy earlier in the table I gave you. No change
+     needed there.
+
+  Yours now: items 1–6 — grammar rules, parser line cursor +
+  parse_if/parse_block + ! in parse_factor, the scope stack, and
+  visit_if/visit_not/visit_while. The 18 .expected files get generated and
+  hand-verified after that; I listed the expected message and column for each in
+  the table above, and scope_assign-inner-type is the one that proves the scope
+  stack resolves to the inner x.
+
+✻ Cooked for 8m 42s · done Monday 11:41 PM
+
+※ recap: Goal is practice 5: if/else, scopes and basic blocks. I finished my half (lexer, nodes, alloca helper, grammar prose, tests, Makefile, README, check.py) in eight commits. Next: you write items 1-6, the grammar rules, parser, scope stack and visit_if. (disable recaps in /config)
+
+❯ my part is done. review it against the handout and fix what you find, each
+  fix its own commit, and give me a short list at the end of what was wrong and
+  why. then generate expected for new tests and check line:col by hand, add
+  ast for warmup and nested, get make tests and make check green, show me the
+  phi line and the warmup output.ll blocks, sync readme, commit and open the pr
+  to main with vovaskochko as reviewer. dont touch ai_usage.txt
+⏺ Let me see what you wrote.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+⏺ Two things I want to understand: you edited block_never-closed.txt and two
+  existing .expected files. Let me read the full diff.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+⏺ Grammar rules match the handout exactly, and those two .expected updates are
+  correct consequences of the new message wording. Now the compiler.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+⏺ This is good work. The global_string dedup is a real catch — two exits now
+  means two fmt_int globals, which llvmlite would have rejected on the name
+  collision. Let me test it against the handout's cases rather than just reading
+  it.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+⏺ Every error message and column matches the handout verbatim. The 18 failures
+  are all missing .expected. Let me check the ok programs run correctly.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+⏺ All eight correct — the handout's three graded numbers are there: 15, true,
+  20, plus 55 for while. Now let me hunt for the cases the suite doesn't cover.
+  Testing edge cases against the handout's rules.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+⏺ Wait — !!a on false printing false is wrong. !!false is false... that's
+  correct. And !a == b where a=true, b=false: !true = false, false == false =
+  true. Correct.
+
+  Let me verify the "both arms exit" IR validity, which the handout specifically
+  calls out, and probe the exit placement rules.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+⏺ One bug. else no block reports line 7, but the offending exit 0 is on line 6:
+
+  1 bool b{true}
+  2 if b
+  3 {
+  4     exit 1
+  5 }
+  6 else
+  7 exit 0
+
+  Actually exit 0 is on line 7 there — my test program has 7 lines. Let me
+  re-count and check the handout's 4:1 case precisely, since that's the graded
+  one.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+⏺ 4:1: expected '{' on its own line after 'if', got 'a' — byte-identical to the
+  handout. Now the structural edge cases I'm less sure about.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+⏺ All correct. Now let me verify the IR structure requirements from Task 3 —
+  exactly one terminator per block, allocas in entry, and that lli accepts the
+  both-arms-exit case.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+⏺ Exactly the handout's described behaviour: both arms end in ret, no br added,
+  merge has no predecessor and still gets the program's last exit, and the IR
+  verifies. One fmt_int global shared by all three — your dedup working.
+
+  Now let me check the one case I suspect: a block whose last statement is a
+  nested if that doesn't exit, followed by }.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+⏺ Exactly the 5 blocks I predicted, each with exactly one terminator, 3 allocas
+  all in entry. This matches the warm-up analysis precisely.
+
+  Let me now stress the areas most likely to hide a bug: exit inside a while
+  body followed by more code, and node.decl resolution under shadowing in
+  codegen.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+⏺ All correct, including the subtle one: shadow i64 inner assign outer returns
+  100, proving the inner y := 7 hit the inner slot and left the outer untouched.
+  node.decl is resolving properly.
+
+  Now the one structural case I want to check carefully — a while loop whose
+  body declares a variable, since the alloca is in entry but the loop runs many
+  times.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+⏺ Textbook: step's alloca hoisted to entry, its store left in the body where it
+  re-initialises each iteration, and the back edge br label %"cond" from body.
+  Prints 40.
+
+  Now the one place I think there may be a real gap — the semantic pass's
+  visit_program doesn't push a frame, which was the thing you got wrong in the
+  warm-up. Let me look.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+⏺ The global frame is created in __init__ as [{}] rather than pushed by
+  visit_program. Functionally identical for a single run and no special-casing
+  anywhere — the warm-up's "3 frames" is satisfied; it's just born rather than
+  pushed. Not a bug, and I won't churn it.
+
+  Let me look for genuine problems with fresh eyes on the parser's line
+  handling.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+⏺ Found a real bug. In parse_block, the empty block check runs after the
+  statement after 'exit' check, and more importantly after parse_body has
+  consumed lines. Consider { immediately followed by } — parse_body returns
+  empty, toks[0] is rbrace, so it reaches the empty check and reports empty
+  block at the brace. That works.
+
+  But the ordering means an empty block whose } is missing reports the wrong
+  error. Let me confirm, and probe end_line after }.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+⏺ All sensible and correctly positioned. Note empty block, no closing brace
+  reports '{' is never closed rather than empty block — that's arguably the
+  better diagnosis anyway (the brace genuinely is unclosed), so I'll leave the
+  ordering.
+
+  Now the if at EOF case: 2:5 for if b — column 5 is one past b, correct for
+  "found end of line". But the handout's wording for that family is expected '{'
+  on its own line after 'if', and when there's no next line at all, pointing at
+  the end of the if line is right.
+
+  Let me check a subtle one: does parse_block handle a missing next line
+  correctly before expect?
+
+  Ran 1 shell command (ctrl+o to expand)
+
+⏺ Handles both. The nested case produces the right 5 blocks and verifies — this
+  is the case the handout warns about ("the terminator check reads the current
+  block, not then_bb — a nested if moved the builder to its own merge"), and
+  branch_unless_terminated reading self.builder.block handles it.
+
+  Let me check --ast on the new constructs and the existing .ast files.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+⏺ The warm-up --ast matches the handout's page-2 dump byte-for-byte.
+
+  I've found no bugs in your code so far. Let me probe two more areas before
+  concluding: the exit semantics inside blocks per the handout's rule, and
+  whether an exit in a while body is legal.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+⏺ not of comparison correctly rejects !a == 1 — ! binds to a (an i32), so it
+  errors at the !. That's the handout's binding rule enforced.
+
+  One case stands out: only exit is inside a block reports the program must end
+  with 'exit' at 2:1 (the if). Correct per the grammar — program ::= { statement
+  } exit, so a program-level exit is mandatory even if a block exits. Let me
+  verify that's what the handout intends.
+
+  Ran 1 shell command (ctrl+o to expand)
+⏺ "the program's last exit" and the grammar's program ::= { statement } exit
+  both confirm a program-level exit is required. Your behaviour is right — and
+  the handout's own second example (not_operator, ending exit 0 after an arm
+  that exits) demonstrates it.
+
+  Your code is correct. I found one genuine issue — not in your code, in a test
+  file. Let me verify it.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+⏺ That's correct and reports the handout's '{' is never closed. You removed the
+  trailing exit 0 because with it present the file hits the statement after
+  'exit' path instead — right call, the file now tests what its name says.
+
+  So: no bugs found in your implementation. I ran ~45 cases across parser line
+  handling, block boundaries, shadowing, codegen block structure, terminators,
+  and degenerate programs; every error message and column matches the handout
+  verbatim, and all IR verifies. The one thing worth flagging isn't a defect:
+
+  - visit_program doesn't push the global frame — it's born in __init__ as [{}]
+    instead. Functionally identical, no special-casing anywhere, warm-up count
+    still 3. Leaving it.
+
+  Moving to the .expected files. Generating them now that the compiler is right.
+
+⏺ Bash(for f in tests/err/*.txt; do b=${f%.txt}; [ -e "$b.expected" ] || {
+      docker run --rm -v "$PWD":/work -w /work lcd-practice5 python3 compiler.py
+      "$f" /tmp/o.ll 2>…)
+  ⎿   M ai_usage.txt
+     ?? tests/err/block_never-closed.expected
+     ?? tests/err/block_statement-after-exit.expected
+     … +16 lines (ctrl+o to expand)
+  ⎿  Created tests/err/block_never-closed.expected (+1 -0)
+      1 +compilation error: line 3:1: '{' is never closed
+  ⎿  Created tests/err/block_statement-after-exit.expected (+1 -0)
+      1 +compilation error: line 5:5: statement after 'exit' in the same
+        +block
+  ⎿  Created tests/err/else_without-if.expected (+1 -0)
+      1 +compilation error: line 2:1: 'else' without an 'if'
+  ⎿  Created tests/err/if_brace-on-if-line.expected (+1 -0)
+      1 +compilation error: line 2:6: unexpected '{' after the statement
+  ⎿  Created tests/err/if_cond-not-bool.expected (+1 -0)
+      1 +compilation error: line 2:1: the condition of 'if' must be bool,
+        + got i32
+  ⎿  … 13 more files changed
+
+⏺ ai_usage.txt shows modified — you told me not to touch it. Let me check and
+  restore.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+⏺ That's your edit, not mine — you rewrote ai_usage.txt for Practice 5
+  (replacing the Practice 4 log). It was already modified in your working tree
+  before I ran anything; my commands only wrote .expected files. Leaving it
+  exactly as you have it, uncommitted and untouched.
+
+  Now verifying every generated column by hand against its source, per
+  CLAUDE.md.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+⏺ Hand-checking each:
+
+  - if_cond-not-bool 2:1 — line 2 if a, col 1 is i of if. Handout: "at the if".
+    ✓
+  - not_on-int 2:8 — line 2 bool b{!a}: cols b=1..4, space=5, b=6, {=7, !=8. At
+    the !. Handout's 2:8 exactly. ✓
+  - scope_use-after-block 6:6 — line 6 exit inner: exit=1-4, space=5, inner=6.
+    At the name. Handout's wording 5:6 was for its own example; ours is line 6.
+    ✓
+  - scope_redeclare-in-block 5:9 — line 5     i32 a{2}: 4 spaces=1-4, i32=5-7,
+    space=8, a=9. At the name. Handout's 4:9, same column. ✓
+  - if_brace-on-if-line 2:6 — line 2 if b {: if=1-2, space=3, b=4, space=5, {=6.
+    Handout's 2:6 exactly. ✓
+
+  Ran 1 shell command (ctrl+o to expand)
+
+⏺ - if_empty-block 3:1 — line 3 is { at col 1. Reported at the brace. ✓
+  - block_statement-after-exit 5:5 — line 5     i32 a{2}: 4 spaces, i=5. At the
+    statement, not the exit — CLAUDE.md's rule. Handout's 4:5, same column. ✓
+  - else_without-if 2:1 — else at col 1. Handout's 2:1. ✓
+  - block_never-closed 3:1 — the { at col 1. Reported at the unclosed brace, not
+    EOF. ✓
+  - scope_assign-inner-type 5:5 — line 5     x := 1: x=5. At the name, and it
+    resolved to the inner x (type bool), which is the whole point. Handout's 5:5
+    exactly. ✓
+
+  All ten verified. Now the ok ones.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+⏺ Reasoned by hand: if-else_basic 10+5=15 (handout's stated expectation),
+  not_operator true (handout's stated expectation), scope_shadow-type 20 (the
+  warm-up, handout's "the warm-up program's 20"), if_no-else a==1 so a:=7,
+  both-arms-assign n==3 true so r:=1, if_nested 3+4=7, if_exit-in-arm 5,
+  while_sum 1+..+10=55 (handout's stated expectation). All four handout-stated
+  values match.
+
+  Now the .ast files for the warm-up and nested programs.
+
+⏺ Bash(for n in scope_shadow-type if_nested if-else_basic not_operator
+      while_sum; do docker run --rm -v "$PWD":/work -w /work lcd-practice5
+      python3 compiler.py --ast t…)
+  ⎿  tests/ok/if-else_basic.ast
+     tests/ok/if_nested.ast
+     tests/ok/left_assoc.ast
+     … +30 lines (ctrl+o to expand)
+  ⎿  Created tests/ok/if-else_basic.ast (+19 -0)
+       1 +Program
+       2 +  Decl a i32 mut
+       3 +    Const 10
+       4 +  Decl b bool const
+       5 +    Bool true
+       6 +  If
+       7 +    Var b
+       8 +    Block
+       9 +      Assign a
+      10 +        BinOp +
+      11 +          Var a
+      12 +          Const 5
+      13 +    Block
+      14 +      Assign a
+      15 +        BinOp -
+      16 +          Var a
+      17 +          Const 5
+      18 +  Exit
+      19 +    Var a
+  ⎿  Created tests/ok/if_nested.ast (+22 -0)
+       1 +Program
+       2 +  Decl a i32 mut
+       3 +    Const 0
+       4 +  Decl c bool const
+       5 +    Bool false
+       6 +  If
+       7 +    Not
+       8 +      Var c
+       9 +    Block
+      10 +      If
+      11 +        Bool true
+      12 +        Block
+      13 +          Assign a
+      14 +            BinOp +
+      15 +              Var a
+      16 +              Const 3
+      17 +      Assign a
+      18 +        BinOp +
+      19 +          Var a
+      20 +          Const 4
+      21 +  Exit
+      22 +    Var a
+  ⎿  Created tests/ok/not_operator.ast (+22 -0)
+       1 +Program
+       2 +  Decl a bool const
+       3 +    Bool true
+       4 +  Decl b bool const
+       5 +    Bool false
+       6 +  Decl c bool const
+       7 +    Not
+       8 +      Var a
+       9 +  Decl d bool mut
+      10 +    Not
+      11 +      Var b
+      12 +  Assign d
+      13 +    Not
+      14 +      Var c
+      15 +  If
+      16 +    Not
+      17 +      Var c
+      18 +    Block
+      19 +      Exit
+      20 +        Var d
+      21 +  Exit
+      22 +    Const 0
+  ⎿  Created tests/ok/scope_shadow-type.ast (+19 -0)
+       1 +Program
+       2 +  Decl x i32 mut
+       3 +    Const 10
+       4 +  If
+       5 +    Bool true
+       6 +    Block
+       7 +      Decl x bool mut
+       8 +        Bool true
+       9 +      If
+      10 +        Var x
+      11 +        Block
+      12 +          Decl x i64 mut
+      13 +            Const 20
+      14 +          Exit
+      15 +            Var x
+      16 +      Exit
+      17 +        Var x
+      18 +  Exit
+      19 +    Var x
+  ⎿  Created tests/ok/while_sum.ast (+20 -0)
+       1 +Program
+       2 +  Decl i i32 mut
+       3 +    Const 1
+       4 +  Decl sum i32 mut
+       5 +    Const 0
+       6 +  While
+       7 +    BinOp !=
+       8 +      Var i
+       9 +      Const 11
+      10 +    Block
+      11 +      Assign sum
+      12 +        BinOp +
+      13 +          Var sum
+      14 +          Var i
+      15 +      Assign i
+      16 +        BinOp +
+      17 +          Var i
+      18 +          Const 1
+      19 +  Exit
+      20 +    Var sum
+
+⏺ The nested dump shows If → Block → If → Block nesting and Not under the
+  condition. Let me diff the warm-up .ast against the handout's printed tree to
+  prove it's exact.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+⏺ Byte-identical to the handout's page-2 dump. Now running both suites green.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+⏺ 71 passed, 0 failed in both. Let me confirm via the make targets as you'll
+  demo them, and commit.
+
+  Ran 2 shell commands (ctrl+o to expand)
+
+⏺ Now the two demos you asked to see. First the phi line — using the handout's
+  exact program.
+
+⏺ Bash(cp tests/ok/if-else_both-arms-assign.txt input.txt && cat -n input.txt &&
+      echo "=== make phi ===" && make phi 2>&1 | sed -n '/define/,/^}/p')
+  ⎿       1     i32 mut r{0}
+          2     i64 n{3}
+          3     if n == 3
+     … +29 lines (ctrl+o to expand)
+  ⎿  Updated input.txt (+11 -5)
+       1 -i32 x{2 + 3 * 4}
+       2 -i32 mut a{10 - 3 - 2}
+       3 -a := a * 2 - 1
+       4 -i32 z{x * a - 6}
+       5 -exit z
+       1 +i32 mut r{0}
+       2 +i64 n{3}
+       3 +if n == 3
+       4 +{
+       5 +    r := 1
+       6 +}
+       7 +else
+       8 +{
+       9 +    r := 2
+      10 +}
+      11 +exit r
+
+⏺ The phi line, exactly as the handout predicts:
+
+  %r.0 = phi i32 [ 1, %then ], [ 2, %else ]
+
+  Both stores are gone, merge opens with the phi, and preds = %else, %then
+  confirms the two incoming edges. Now the warm-up's output.ll blocks.
+
+⏺ Bash(cp tests/ok/scope_shadow-type.txt input.txt && make run 2>&1 | tail -1 &&
+      echo "=== output.ll ===" && docker run --rm -v "$PWD":/work -w /work
+      lcd-practice5 bas…)
+  ⎿  Program exit with result 20
+     === output.ll ===
+     define i32 @"main"()
+     … +28 lines (ctrl+o to expand)
+  ⎿  Updated input.txt (+10 -9)
+       1 -i32 mut r{0}
+       2 -i64 n{3}
+       3 -if n == 3
+       1 +i32 mut x{10}
+       2 +if true
+       3  {
+       5 -    r := 1
+       4 +    bool mut x{true}
+       5 +    if x
+       6 +    {
+       7 +        i64 mut x{20}
+       8 +        exit x
+       9 +    }
+      10 +    exit x
+      11  }
+       7 -else
+       8 -{
+       9 -    r := 2
+      10 -}
+      11 -exit r
+      12 +exit x
+
+⏺ The warm-up's blocks, printing 20 through lli:
+
+  ┌─────────┬─────────┬─────────────────────────────────────────────────────┐
+  │  Block  │  Ends   │                        Note                         │
+  │         │  with   │                                                     │
+  ├─────────┼─────────┼─────────────────────────────────────────────────────┤
+  │ entry   │ br i1   │ all three allocas here: x (i32), x.1 (i1), x.2      │
+  │         │ true    │ (i64) — three shadowed x, three slots, three types  │
+  ├─────────┼─────────┼─────────────────────────────────────────────────────┤
+  │ then    │ br i1   │ the outer arm; stores the bool x, loads it as the   │
+  │         │ %".5"   │ inner condition                                     │
+  ├─────────┼─────────┼─────────────────────────────────────────────────────┤
+  │ merge   │ ret     │ line 12's exit x — reads the i32 x. No predecessor  │
+  ├─────────┼─────────┼─────────────────────────────────────────────────────┤
+  │ then.1  │ ret     │ line 8's exit x — reads the i64 x.2, prints 20      │
+  ├─────────┼─────────┼─────────────────────────────────────────────────────┤
+  │ merge.1 │ ret     │ line 10's exit x — reads the i1 x.1 via select. No  │
+  │         │         │ predecessor                                         │
+  └─────────┴─────────┴─────────────────────────────────────────────────────┘
+
+  5 blocks, each ending exactly once, exactly as we worked out on paper. The
+  three x resolve to three different slots of three different types — and
+  merge/merge.1 are the predecessor-less merges the handout says stay valid.
+
+  Now syncing the README with what actually shipped.
+
+⏺ Bash(git checkout input.txt && ls tests/ok/*.txt | wc -l && ls tests/err/*.txt
+      | wc -l && ls tests/ok/*.ast | wc -l && grep -n "27 programs\|44
+      programs\|some with e…)
+  ⎿  Updated 1 path from the index
+     27
+     44
+     … +3 lines (ctrl+o to expand)
+  ⎿  Updated input.txt (+5 -12)
+       1 -i32 mut x{10}
+       2 -if true
+       3 -{
+       4 -    bool mut x{true}
+       5 -    if x
+       6 -    {
+       7 -        i64 mut x{20}
+       8 -        exit x
+       9 -    }
+      10 -    exit x
+      11 -}
+      12 -exit x
+       1 +i32 x{2 + 3 * 4}
+       2 +i32 mut a{10 - 3 - 2}
+       3 +a := a * 2 - 1
+       4 +i32 z{x * a - 6}
+       5 +exit z
+
+⏺ Counts are right; .ast is now 10, so "some" should be exact. Updating the
+  README with that plus the real phi and block output.
+
+⏺ Bash(python3 - <<'PY'
+      src = open('README.md').read()…)
+  ⎿  ## Scopes are not basic blocks
+
+     A block is one rule in the grammar, one frame in the semantic pass and
+     … +69 lines (ctrl+o to expand)
+  ⎿  Updated README.md (+17 -3)
+      200  predecessor, since the arms before them return; a merge with n
+           o predecessor is
+      201  still valid IR.
+      202
+      203 +`tests/ok/scope_shadow-type.txt` is that program, and this is
+          +what it compiles
+      204 +to — three slots in `entry`, one per declaration, and five blo
+          +cks each ending
+      205 +once:
+      206 +
+      207 +```
+      208 +entry:     %x = alloca i32 · %x.1 = alloca i1 · %x.2 = alloca
+          +i64   br i1 true
+      209 +then:      stores the bool x, loads it as the inner condition
+          +       br i1
+      210 +merge:     reads the i32 x — the last line
+          +       ret
+      211 +then.1:    reads the i64 x, prints 20
+          +       ret
+      212 +merge.1:   reads the i1 x through a select
+          +       ret
+      213 +```
+      214 +
+      215  What keeps the two apart in the code is `node.decl`. The seman
+           tic pass resolves
+      216  every `Var` and every `Assign` to the declaration it means, an
+           d the generator
+      217  reads that field — it never looks a name up, so it never has t
+           o know which `x` is
+     ...
+      230  block with a `phi`:
+      231
+      232  ```
+      221 -%r.0 = phi i32 [ 1, %then ], [ 2, %else ]
+      233 +merge:                              ; preds = %else, %then
+      234 +  %r.0 = phi i32 [ 1, %then ], [ 2, %else ]
+      235  ```
+      236
+      237  A value that depends on which block control came from. That is
+            SSA, and the
+      225 -allocas are what let LLVM build it.
+      238 +allocas are what let LLVM build it. `tests/ok/if-else_both-arm
+          +s-assign.txt` is
+      239 +the program; `make phi` is the demo.
+      240
+      241  ## Deliberate decisions
+      242
+     ...
+      292  lexer.py        byte-by-byte state machine: START, IDENT, NUMB
+           ER, PAIR, BANG
+      293  grammar.ebnf    the grammar, one rule per parse method
+      294  compiler.py     the AST classes, the parser, the semantic pass
+           , the codegen walk
+      281 -tests/ok/       27 programs that run, some with expected trees
+      295 +tests/ok/       27 programs that run, 10 of them with expected
+          + trees
+      296  tests/err/      44 programs that must fail
+      297  run_tests.sh    compiles and runs each test, compares against
+           .expected
+     … 1 more lines (ctrl+o to expand)
+
+⏺ One claim to fix: the README says "a block pushes one on entry and pops it on
+  exit" plus "three frames are pushed and popped — the two blocks and the global
+  one", but the global frame is created in __init__, not pushed. Making that
+  precise.
+
+⏺ Bash(python3 - <<'PY'
+      src = open('README.md').read()…)
+  ⎿  191:read the `i32`, but neither is reached. Three frames are live at t
+     he deepest
+     192-point — the global one the checker starts with and one per block —
+     … +4 lines (ctrl+o to expand)
+  ⎿  Updated README.md (+3 -3)
+      188
+      189  Three `x`, three declarations, three types, three slots. The `
+           exit` in the inner
+      190  block prints 20; the one after it would read the `bool`, and t
+           he last line would
+      191 -read the `i32`, but neither is reached. Three frames are pushe
+          -d and popped — the
+      192 -two blocks and the global one — while the IR needs five basic
+          -blocks: `entry`,
+      193 -then a `then` and a `merge` for each `if`. Neither `if` has an
+          - `else`, so neither
+      191 +read the `i32`, but neither is reached. Three frames are live
+          +at the deepest
+      192 +point — the global one the checker starts with and one per blo
+          +ck — while the IR
+      193 +needs five basic blocks: `entry`, then a `then` and a `merge`
+          +for each `if`. Neither `if` has an `else`, so neither
+      194  gets an `else` block, and `cbranch` goes straight to `merge`.
+      195
+      196  The counts differ because frames follow braces and basic block
+           s follow jumps.
+
+⏺ Line 193 is now over-long. Rewrapping.
+
+⏺ Bash(python3 - <<'PY'
+      src = open('README.md').read()…)
+  ⎿  README.md:43: 87 chars
+     README.md:59: 82 chars
+     README.md:68: 84 chars
+     … +12 lines (ctrl+o to expand)
+  ⎿  Updated README.md (+3 -2)
+      190  block prints 20; the one after it would read the `bool`, and t
+           he last line would
+      191  read the `i32`, but neither is reached. Three frames are live
+           at the deepest
+      192  point — the global one the checker starts with and one per blo
+           ck — while the IR
+      193 -needs five basic blocks: `entry`, then a `then` and a `merge`
+          -for each `if`. Neither `if` has an `else`, so neither
+      194 -gets an `else` block, and `cbranch` goes straight to `merge`.
+      193 +needs five basic blocks: `entry`, then a `then` and a `merge`
+          +for each `if`.
+      194 +Neither `if` has an `else`, so neither gets one, and `cbranch`
+          + goes straight to
+      195 +`merge`.
+      196
+      197  The counts differ because frames follow braces and basic block
+           s follow jumps.
+      198  `merge` belongs to no brace, and an `exit` terminates a basic
+           block without
+⏺ Several of those are pre-existing (code blocks and the error-message example),
+  so an 80-char rule isn't what this file follows. Let me check only the lines
+  I introduced are in keeping.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+⏺ Those are 81–83 chars because of em-dashes counting as multibyte — in display
+  width they're ~80, matching the file's existing style. Fine as-is.
+
+  Verifying everything is still green, then pushing and opening the PR.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+⏺ Both green. Only ai_usage.txt is dirty — yours, untouched, left uncommitted as
+  instructed.
+
+  Let me squash that trivial rewrap commit into the README one before pushing.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+⏺ Now pushing and opening the PR.
+
+  Ran 2 shell commands (ctrl+o to expand)
+
+⏺ gh is authenticated but the SSH key isn't available to me (likely an
+  agent/passphrase issue). Pushing over HTTPS with the gh token instead.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+⏺ -u origin overrode the HTTPS URL. Pushing to the URL directly, then fixing the
+  upstream.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+⏺ Pushed. Opening the PR with vovaskochko as reviewer.
+
+  Created PR #5, ran 1 shell command (ctrl+o to expand)
+
+⏺ Done. PR #5 → main, reviewer vovaskochko:
+  https://github.com/PrudiusVladislav/kse-lang-compilers-project/pull/5
+
+  Review of your code: nothing was wrong
+
+  You asked for a list of what I found and why. The honest answer is that I
+  found no bugs, so there are no fix commits. I'm reporting that rather than
+  inventing changes to look busy.
+
+  What I checked, roughly 45 programs beyond the suite: parser line handling
+  (if/while/else at EOF, junk after {/}/else, missing blocks, stray }), block
+  boundaries (empty blocks, unclosed, exit not last, exit then decl), shadowing
+  (same name across sequential blocks, inner i32 shadowing outer i64 with
+  assignment — outer correctly untouched, const inner shadowing mut outer),
+  nesting (3-deep if, while in if, if in while, nested if as a block's last
+  statement), codegen structure (terminator counts per block, allocas in entry,
+  opt -passes=verify on every shape), and degenerate programs (empty,
+  blank-lines-only, no exit, exit only inside a block).
+
+  Every error message and column matches the handout verbatim, including the
+  five it prints and the 4:1: expected '{' on its own line after 'if', got 'a'
+  case. All IR verifies.
+
+  Two things worth knowing, neither a defect:
+
+  1. Your global_string dedup was a necessary catch. Multiple exits now exist in
+     one program; without the module.globals.get guard llvmlite would have hit
+     a name collision on the second fmt_int. You caught a bug that only appears
+     this week.
+  2. visit_program doesn't push the global frame — it's born in __init__ as
+     [{}]. Functionally identical, nothing special-cases it, the warm-up's
+     three-frame count still holds. I left it and made the README say "live at
+     the deepest point" rather than "pushed and popped," since the prose was the
+     only thing that was imprecise.
+
+  The two demos
+
+  phi (make phi):
+  merge:                              ; preds = %else, %then
+    %r.0 = phi i32 [ 1, %then ], [ 2, %else ]
+
+  Warm-up blocks — 5 blocks, each ending once, 3 slots in entry for the 3
+  shadowed x, prints 20 through lli. merge and merge.1 have no predecessor and
+  verify clean, exactly as the handout describes. Full table is in the PR body
+  and the README.
+
+  Everything else
+
+  - 18 .expected generated, every line:column hand-verified against its source
+    (the arithmetic is in my earlier messages — e.g. not_on-int 2:8 lands on the
+    !, scope_assign-inner-type 5:5 lands on the inner x)
+  - 5 new .ast files; scope_shadow-type.ast diffs clean against the handout's
+    printed dump
+  - make tests and make check: 71 passed, 0 failed
+  - README synced: real block table, real phi with predecessors, .ast count 10
+  - ai_usage.txt untouched — your Practice 5 rewrite is still uncommitted in the
+    working tree, which is where you left it
+
+  One flag for the demo: the handout asks for src/compiler.py and we're at root,
+  unchanged since Practice 2. It's noted at the bottom of the PR body.
+
+✻ Worked for 8m 59s · done 12:05 AM
+</session>
+
+

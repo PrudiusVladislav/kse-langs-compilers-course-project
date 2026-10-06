@@ -1,0 +1,6 @@
+i32 a{10}
+i64 b{a}
+bool c{a == b}
+i32 d{a + b}
+bool e{c == 1}
+exit d

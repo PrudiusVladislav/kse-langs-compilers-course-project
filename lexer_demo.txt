@@ -1,0 +1,9 @@
+i32 x{0}
+i64 mut y{10}
+bool ok{true}
+
+i32 mut total_2 { x + 10 }
+	y := y * x
+bool same{x == y}
+ok := same != false
+exit y

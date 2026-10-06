@@ -1,0 +1,6 @@
+bool b{true}
+else
+{
+    exit 1
+}
+exit 0

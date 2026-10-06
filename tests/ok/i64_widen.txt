@@ -1,0 +1,5 @@
+i32 a{7}
+i64 b{a}
+i64 mut c{a + b}
+c := c * a
+exit c
