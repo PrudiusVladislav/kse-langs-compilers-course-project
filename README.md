@@ -360,7 +360,7 @@ lexer.py        byte-by-byte state machine over UTF-8, incl. the keycap lookahea
 grammar.ebnf    the grammar, one rule per parse method
 design.md       the language design and why each choice was made
 compiler.py     the AST classes, the parser, the semantic pass, the codegen walk
-tests/ok/       40 programs that run, 10 of them with expected trees
+tests/ok/       40 programs that run, 15 of them with expected trees
 tests/err/      53 programs that must fail
 run_tests.sh    compiles and runs each test, compares against .expected
 check.py        the same tests as a pass/fail table

@@ -1,1 +1,1 @@
-compilation error: line 1:5: variable 'total' needs an initialiser in {}
+compilation error: line 1:4: variable 'total' needs an initialiser in ⟨⟩
