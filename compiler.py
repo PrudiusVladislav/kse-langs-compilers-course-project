@@ -11,6 +11,7 @@ FORMAT_TRUE = b"Program exit with result true\n\0"
 FORMAT_FALSE = b"Program exit with result false\n\0"
 IR_TYPES = {"i32": I32, "i64": I64, "bool": I1}
 I32_MAX, I64_MAX = 2**31 - 1, 2**63 - 1
+I32_MIN, I64_MIN = -(2**31), -(2**63)
 
 TYPES = {"kw_i32": "i32", "kw_i64": "i64", "kw_bool": "bool"}
 BOOLS = {"kw_true": True, "kw_false": False}
@@ -21,6 +22,13 @@ MUL_OPS = {"star": "*"}
 
 def wider(a, b):
     return "i64" if "i64" in (a, b) else a
+
+
+def literal_value(expr):
+    """The constant an expression is, after negation folding, or None."""
+    if isinstance(expr, ConstNode):
+        return expr.value
+    return getattr(expr, "folded", None)
 
 
 class Node:
@@ -437,8 +445,8 @@ class SemanticChecker:
         have = expr.type
         if have == want or (have == "i32" and want == "i64"):
             return
-        if isinstance(expr, ConstNode) and have == "i64" and want == "i32":
-            raise CompileError(expr.line, expr.col, f"constant {expr.value} does not fit in i32")
+        if (value := literal_value(expr)) is not None and have == "i64" and want == "i32":
+            raise CompileError(expr.line, expr.col, f"constant {value} does not fit in i32")
         raise CompileError(
             at.line, at.col, f"cannot {what} of type {want} with a value of type {have}"
         )
@@ -461,20 +469,20 @@ class SemanticChecker:
         decl = self.lookup(node)
         if not decl.mutable:
             raise CompileError(
-                node.line, node.col, f"cannot assign to '{node.name}': it is not mut"
+                node.line, node.col, f"cannot assign to '{node.name}': it is not \U0001f513"
             )
         node.decl = decl
         node.value.accept(self)
         self.check_assignable(node.value, decl.type_name, node, f"assign to '{node.name}'")
 
     def visit_if(self, node):
-        self.check_condition(node, "if")
+        self.check_condition(node, "\U0001f914")
         node.then_block.accept(self)
         if node.else_block:
             node.else_block.accept(self)
 
     def visit_while(self, node):
-        self.check_condition(node, "while")
+        self.check_condition(node, "\U0001f501")
         node.body.accept(self)
 
     def visit_block(self, node):
@@ -490,7 +498,7 @@ class SemanticChecker:
 
     def visit_binop(self, node):
         lt, rt = node.left.accept(self), node.right.accept(self)
-        if node.op in "+-*":
+        if node.op in ADD_OPS.values() or node.op in MUL_OPS.values():
             if "bool" in (lt, rt):
                 raise CompileError(node.line, node.col, f"cannot apply '{node.op}' to bool")
             node.type = wider(lt, rt)
@@ -506,15 +514,27 @@ class SemanticChecker:
         node.type = "bool"
         return node.type
 
+    def visit_neg(self, node):
+        if isinstance(node.operand, ConstNode):
+            node.folded = -node.operand.value
+            return self.range_check(node, node.folded)
+        if (have := node.operand.accept(self)) == "bool":
+            raise CompileError(node.line, node.col, "cannot apply '-' to bool")
+        node.type = have
+        return node.type
+
     def visit_var(self, node):
         node.decl = self.lookup(node)
         node.type = node.decl.type_name
         return node.type
 
     def visit_const(self, node):
-        if node.value > I64_MAX:
-            raise CompileError(node.line, node.col, f"constant {node.value} does not fit in i64")
-        node.type = "i32" if node.value <= I32_MAX else "i64"
+        return self.range_check(node, node.value)
+
+    def range_check(self, node, value):
+        if not I64_MIN <= value <= I64_MAX:
+            raise CompileError(node.line, node.col, f"constant {value} does not fit in i64")
+        node.type = "i32" if I32_MIN <= value <= I32_MAX else "i64"
         return node.type
 
     def visit_bool(self, node):
@@ -524,7 +544,7 @@ class SemanticChecker:
 
 class CodeGen:
     def __init__(self):
-        self.module = ir.Module(name="practice5")
+        self.module = ir.Module(name="kaguya")
         self.module.triple = llvm.get_default_triple()
 
         self.function = ir.Function(self.module, ir.FunctionType(I32, []), name="main")
@@ -643,6 +663,11 @@ class CodeGen:
 
     def visit_not(self, node):
         return self.builder.xor(node.operand.accept(self), ir.Constant(I1, True))
+
+    def visit_neg(self, node):
+        if hasattr(node, "folded"):
+            return ir.Constant(IR_TYPES[node.type], node.folded)
+        return self.builder.neg(self.coerce(node.operand.accept(self), node.operand.type, node.type))
 
     def visit_var(self, node):
         return self.builder.load(self.slots[node.decl])
