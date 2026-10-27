@@ -1,0 +1,15 @@
+🧱 Point
+{
+    3⃣ x
+    3⃣ y
+}
+🧱 Circle
+{
+    Point center
+    3⃣ r
+    ❓ filled
+}
+Circle c ⟨⟨3, 4⟩, 5, ✅⟩
+📢 c
+📢 "center: ", c.center
+🚪 c.r

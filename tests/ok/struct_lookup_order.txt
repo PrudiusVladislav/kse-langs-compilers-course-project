@@ -1,0 +1,21 @@
+3⃣ x ⟨1000⟩
+3⃣ k ⟨7⟩
+🧱 Box
+{
+    3⃣ x
+    🧩 local(3⃣ x) → 3⃣
+    {
+        🚪 x
+    }
+    🧩 field() → 3⃣
+    {
+        🚪 x
+    }
+    🧩 global() → 3⃣
+    {
+        🚪 k
+    }
+}
+Box b ⟨5⟩
+📢 b.local(1), " ", b.field(), " ", b.global()
+🚪 0

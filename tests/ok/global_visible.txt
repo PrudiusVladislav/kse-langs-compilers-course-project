@@ -1,0 +1,7 @@
+3⃣ base ⟨100⟩
+3⃣ n ⟨1⟩
+🧩 shift(3⃣ n) → 3⃣
+{
+    🚪 base + n
+}
+🚪 shift(5) + n

@@ -1,0 +1,20 @@
+AI usage log for Stage 2
+Tool: Claude Code (Opus 5.5)
+
+The agent did the language design write-up, the front end, plain functions, input/output and the tests.
+I wrote the struct and member-function core of the semantic pass and code generation.
+
+Agent
+- Proposed the syntax as multiple-choice options I picked from, then wrote it up in the design notes, the grammar and the README
+- Extended the lexer and parser for all new constructs, and the AST output
+- Added plain functions to the semantic pass and code generation, with argument checks, plus read and print through scanf and printf
+- Wrote the test corpus and extended the test script to run programs with stdin input
+
+Me
+- Name lookup inside member functions (parameters and locals, then fields, then globals) and the mutability rules: no mutating member call on a constant object, and field assignment only through a chain that is mutable at every step
+- Struct code generation: an identified struct type per structure, an alloca per object, and field access by a gep with the index taken from the symbol table
+- Member functions lowered to one IR function per structure and member pair, taking the object pointer as their first parameter
+- Printing an object by walking its field table
+
+## Claude Code session transcript:
+https://gist.github.com/PrudiusVladislav/f3c48c741bad8c121eca100325db9846

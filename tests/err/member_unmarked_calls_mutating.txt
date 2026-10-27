@@ -1,0 +1,14 @@
+🧱 Point
+{
+    3⃣ 🔓 x
+    🧩 🔓 move() → 3⃣
+    {
+        🚪 x
+    }
+    🧩 twice() → 3⃣
+    {
+        🚪 move()
+    }
+}
+Point 🔓 p ⟨1⟩
+🚪 p.twice()

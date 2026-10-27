@@ -1,0 +1,24 @@
+🧱 Point
+{
+    3⃣ 🔓 x
+    3⃣ 🔓 y
+    🧩 🔓 move(3⃣ dx, 3⃣ dy) → 3⃣
+    {
+        x := x + dx
+        y := y + dy
+        🚪 sum()
+    }
+    🧩 sum() → 3⃣
+    {
+        🚪 x + y
+    }
+}
+🧱 Circle
+{
+    Point 🔓 center
+    3⃣ r
+}
+Circle 🔓 c ⟨⟨1, 2⟩, 5⟩
+c.center.x := 10
+3⃣ s ⟨c.center.move(1, 1)⟩
+🚪 s + c.center.y * c.r

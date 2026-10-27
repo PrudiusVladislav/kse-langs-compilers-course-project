@@ -1,0 +1,11 @@
+🧱 Point
+{
+    3⃣ x
+    🧩 🔓 reset() → 3⃣
+    {
+        x := 0
+        🚪 x
+    }
+}
+Point 🔓 p ⟨1⟩
+🚪 p.reset()

@@ -1,0 +1,11 @@
+🧱 Box
+{
+    3⃣ x
+    🧩 get() → 3⃣
+    {
+        🚪 later
+    }
+}
+3⃣ later ⟨1⟩
+Box b ⟨2⟩
+🚪 b.get()

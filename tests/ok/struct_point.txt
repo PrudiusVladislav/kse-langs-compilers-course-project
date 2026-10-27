@@ -1,0 +1,8 @@
+🧱 Point
+{
+    3⃣ 🔓 x
+    3⃣ y
+}
+Point 🔓 p ⟨1, 2⟩
+p.x := 10
+🚪 p.x + p.y

@@ -1,0 +1,8 @@
+3⃣ early ⟨later()⟩
+3⃣ g ⟨7⟩
+🧩 later() → 3⃣
+{
+    🚪 g
+}
+📢 early, " ", later()
+🚪 early
