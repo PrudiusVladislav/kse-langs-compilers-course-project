@@ -1,0 +1,17 @@
+Program
+  Func add -> i32
+    Param a i32
+    Param b i32
+    Block
+      Decl s i32 const
+        BinOp +
+          Var a
+          Var b
+      Exit
+        Var s
+  Exit
+    Call add args=2
+      Const 1
+      Call add args=2
+        Const 2
+        Const 3

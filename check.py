@@ -24,7 +24,11 @@ def run(src):
     else:
         if compiled.returncode != 0:
             return False, compiled.stderr.strip().splitlines()[-1]
-        ran = subprocess.run(["lli", str(out)], cwd=ROOT, capture_output=True, text=True)
+        stdin = src.with_suffix(".in")
+        ran = subprocess.run(
+            ["lli", str(out)], cwd=ROOT, capture_output=True, text=True,
+            input=stdin.read_text() if stdin.exists() else "",
+        )
         out.unlink(missing_ok=True)
         if ran.returncode != 0:
             return False, "lli failed"

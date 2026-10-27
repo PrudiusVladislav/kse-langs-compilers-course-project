@@ -1,0 +1,13 @@
+🧱 Point
+{
+    3⃣ 🔓 x
+    3⃣ y
+}
+🧱 Circle
+{
+    Point center
+    3⃣ 🔓 r
+}
+Circle 🔓 c ⟨⟨0, 0⟩, 5⟩
+c.center.x := 3
+🚪 c.center.x

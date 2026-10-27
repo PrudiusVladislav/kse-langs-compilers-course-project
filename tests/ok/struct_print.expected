@@ -1,0 +1,3 @@
+Circle { center: Point { x: 3, y: 4 }, r: 5, filled: true }
+center: Point { x: 3, y: 4 }
+Program exit with result 5

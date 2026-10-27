@@ -1,16 +1,30 @@
-(* Kaguya, stage 1. Quoted items are terminals: tokens the lexer emits, written
-   with the same text. ident and number are terminals too; how they are spelled
-   is lexer.py's rule. NL is the endline token. *)
+(* Kaguya, stage 2. Quoted items are terminals: tokens the lexer emits, written
+   with the same text. ident, number and string are terminals too, spelled by
+   the lexical rules at the end. NL is the endline token. *)
 
-program    ::= { statement } exit_stmt
+program    ::= { top } exit_stmt
 
-statement  ::= decl | assign | if | while
+top        ::= statement | func | struct
+
+statement  ::= decl | object | assign | field_set | call | print | if | while
 
 decl       ::= type [ "🔓" ] ident "⟨" expr "⟩"
 
 type       ::= "3⃣" | "6⃣" | "❓"
 
+object     ::= ident [ "🔓" ] ident init
+
+init       ::= "⟨" init_value { "," init_value } "⟩"
+
+init_value ::= init | expr
+
 assign     ::= ident ":=" expr
+
+field_set  ::= ident "." ident { "." ident } ":=" expr
+
+print      ::= "📢" print_value { "," print_value }
+
+print_value ::= string | expr
 
 if         ::= "🤔" expr NL block [ "🙃" NL block ]
 
@@ -19,6 +33,18 @@ while      ::= "🔁" expr NL block
 block      ::= "{" NL { statement } [ exit_stmt NL ] "}" NL
 
 exit_stmt  ::= "🚪" expr
+
+func       ::= "🧩" ident params "→" type NL body
+
+member     ::= "🧩" [ "🔓" ] ident params "→" type NL body
+
+params     ::= "(" [ type ident { "," type ident } ] ")"
+
+body       ::= "{" NL { statement } exit_stmt NL "}" NL
+
+struct     ::= "🧱" ident NL "{" NL field { field } { member } "}" NL
+
+field      ::= ( type | ident ) [ "🔓" ] ident NL
 
 expr       ::= arith [ ( "==" | "≠" ) arith ]
 
@@ -29,31 +55,60 @@ term       ::= factor { "*" factor }
 factor     ::= number
              | "✅"
              | "❌"
-             | ident
+             | "📥"
+             | chain
              | "(" expr ")"
              | "!" factor
              | "-" factor
 
+chain      ::= ident { "." ident } [ args ]
 
-(* Line structure is lexical: the lexer gives one token vector per line, the
+call       ::= ident { "." ident } args
+
+args       ::= "(" [ expr { "," expr } ] ")"
+
+
+(* Lexical rules. Spaces and tabs separate tokens and are otherwise dropped;
+   a newline is NL. A glyph is one UTF-8 character with no variation selector.
+
+   ident      ::= letter { letter | digit }        letter is A-Z, a-z or '_'
+   number     ::= digit { digit }                  a letter right after is an error
+   string     ::= '"' { any byte but '"' and newline } '"'
+   keycap     ::= ( "3" | "6" ) U+20E3             3⃣ and 6⃣, resolved in NUMBER
+   glyphs     ::= 🔓 🤔 🙃 🔁 🚪 ✅ ❌ ⟨ ⟩ ≠ 🧩 🧱 📥 📢 →
+   singles    ::= { } ( ) + - * ! , .
+   pairs      ::= ":=" | "=="
+
+   A string has no escapes. One left open at the end of its line is an error
+   at its opening quote.
+
+
+   Line structure is lexical: the lexer gives one token vector per line, the
    parser drops the endline tokens, and a line with no tokens is skipped. So
    one statement per line and blank lines cost no rule here.
 
    program is what rejects a statement after exit and a program without one:
    exit_stmt sits outside the repetition, so it is required and it is last.
-   A block says the same thing one level down, which is why NL is written out:
-   a statement used to be a line, but an if is several, so the parser needs a
-   line cursor beside its token cursor and the grammar needs to say where the
-   line ends. '{', '}' and '🙃' each stand alone on theirs.
+   A block says the same thing one level down. body is a block whose exit_stmt
+   is not optional, so every path through a function leaves with a value.
+   '{', '}' and '🙃' each stand alone on their line.
+
+   func and struct are only in top, so a '🧩' or '🧱' inside a block is a syntax
+   error. member is only in struct. It is func plus an optional '🔓', which
+   marks it mutating. Fields come before the members.
 
    '⟨' '⟩' delimit an initialiser and '{' '}' delimit a block, and neither does
-   the other's job. The parser needs no lookahead to tell them apart, and a
-   brace on the '🤔' line is an ordinary unexpected-token error rather than a
-   special case.
+   the other's job. An object's init nests: a structure-typed field takes an
+   init of its own.
 
-   Mutability is const by default. '🔓' is optional and follows the type, so a
-   decl line always starts with its type token and parse_statement dispatches
-   on one token.
+   A line starting with an ident needs a second token to dispatch. An ident or
+   '🔓' after it makes an object. Otherwise it is a chain: ':=' after a plain
+   ident is assign, ':=' after a dotted chain is field_set, and a chain ending
+   in args is a call. Every other statement still dispatches on one token.
+
+   A chain ends in at most one call, and nothing follows it: a call's result
+   is a scalar, so it has no fields to select. args takes full exprs, so a
+   call is an argument of another call.
 
    expr allows at most one comparison, and it binds weaker than arithmetic: the
    second arith is the only place "==" or "≠" can appear, so a second
@@ -64,12 +119,12 @@ factor     ::= number
    and !!a is a factor twice over. '(' expr ')' is the only way to override the
    precedence that arith and term fix.
 
-   exit_stmt takes a full expr, not a factor: '🚪 a + 1' and '🚪 (x == y)' parse.
+   A string is only in print_value: a string anywhere else is a syntax error.
 
-   Types are not in the grammar: 3⃣ a ⟨ ✅ ⟩ parses. Left out on purpose, checked
-   in the semantic pass of stage 2: declared before use, declared once, 🔓
-   before :=, and the type rules. A bool condition and a bool under '!' are two
-   more of the same kind, and so is every overflow check.
+   Types are not in the grammar: 3⃣ a ⟨ ✅ ⟩ parses. They are checked in the
+   semantic pass, along with declaration before use, declaration once per
+   scope, 🔓 before :=, the argument count and types, the type a function
+   leaves with, field existence, chain mutability and the mutating mark.
 
    Scopes are not in the grammar either. A block is one rule here and one frame
    in the semantic pass and one builder position in codegen, and those three do

@@ -20,7 +20,9 @@ for src in tests/ok/*.txt tests/err/*.txt; do
             sed 's/^/      /' "$TMP/err"
             fail=$((fail + 1)); continue
         fi
-        if ! actual=$(lli "$ll" 2>"$TMP/err"); then
+        input=/dev/null
+        [[ -e $base.in ]] && input=$base.in
+        if ! actual=$(lli "$ll" <"$input" 2>"$TMP/err"); then
             echo "FAIL $name: lli failed"
             sed 's/^/      /' "$TMP/err"
             fail=$((fail + 1)); continue

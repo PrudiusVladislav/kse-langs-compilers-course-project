@@ -1,4 +1,4 @@
-START, IDENT, NUMBER, PAIR, GLYPH = "START", "IDENT", "NUMBER", "PAIR", "GLYPH"
+START, IDENT, NUMBER, PAIR, GLYPH, STRING = "START", "IDENT", "NUMBER", "PAIR", "GLYPH", "STRING"
 
 GLYPHS = {
     "3⃣": "kw_i32",
@@ -14,6 +14,11 @@ GLYPHS = {
     "⟨": "langle",
     "⟩": "rangle",
     "≠": "ne",
+    "\U0001f9e9": "kw_fn",
+    "\U0001f9f1": "kw_struct",
+    "\U0001f4e5": "kw_read",
+    "\U0001f4e2": "kw_print",
+    "→": "arrow",
 }
 CATEGORIES = {
     "kw_i32": ("keyword", "typename"),
@@ -24,16 +29,24 @@ CATEGORIES = {
     "kw_if": ("keyword", "statement"),
     "kw_else": ("keyword", "statement"),
     "kw_while": ("keyword", "statement"),
+    "kw_fn": ("keyword", "declaration"),
+    "kw_struct": ("keyword", "declaration"),
+    "kw_print": ("keyword", "statement"),
+    "kw_read": ("keyword", "expression"),
     "kw_true": ("constant", "boolean"),
     "kw_false": ("constant", "boolean"),
     "ident": ("identifier", None),
     "number": ("constant", "numeric"),
+    "string": ("constant", "string"),
     "lbrace": ("block", "start"),
     "rbrace": ("block", "end"),
     "langle": ("initialiser", "start"),
     "rangle": ("initialiser", "end"),
     "lparen": ("group", "start"),
     "rparen": ("group", "end"),
+    "comma": ("separator", None),
+    "dot": ("operator", "member"),
+    "arrow": ("separator", "result"),
     "assign": ("operator", "assignment"),
     "plus": ("operator", "arithmetic"),
     "minus": ("operator", "arithmetic"),
@@ -52,6 +65,8 @@ SINGLES = {
     ord("-"): "minus",
     ord("*"): "star",
     ord("!"): "not",
+    ord(","): "comma",
+    ord("."): "dot",
 }
 PAIRS = {
     ord(":"): ("assign", ":=", "':' is not followed by '='"),
@@ -118,6 +133,8 @@ def lex(data):
                 state, start, start_col = IDENT, i, col
             elif is_digit(b):
                 state, start, start_col = NUMBER, i, col
+            elif b == 34:
+                state, start, start_col = STRING, i, col
             elif b in PAIRS:
                 state, pair, start_col = PAIR, PAIRS[b], col
             elif b in SINGLES:
@@ -168,6 +185,13 @@ def lex(data):
                 tokens.append(Token(GLYPHS[glyph], glyph, line, start_col))
                 state = START
                 continue
+
+        elif state == STRING:
+            if b is None or b == 10:
+                raise CompileError(line, start_col, "string literal is never closed")
+            if b == 34:
+                tokens.append(Token("string", data[start : i + 1].decode(), line, start_col))
+                state = START
 
         elif state == PAIR:
             kind, text, message = pair

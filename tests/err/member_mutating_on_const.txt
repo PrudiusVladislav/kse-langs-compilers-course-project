@@ -1,0 +1,12 @@
+🧱 Point
+{
+    3⃣ 🔓 x
+    3⃣ y
+    🧩 🔓 move(3⃣ d) → 3⃣
+    {
+        x := x + d
+        🚪 x
+    }
+}
+Point p ⟨1, 2⟩
+🚪 p.move(1)

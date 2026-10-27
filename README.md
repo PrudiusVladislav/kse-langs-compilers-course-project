@@ -1,4 +1,4 @@
-# Kaguya — stage 1: language design, lexer and parser
+# Kaguya — stage 2: functions, structures, read and print
 
 A compiler for a small language with emoji keywords. `lexer.py` turns source
 bytes into typed tokens with a hand-written state machine; `Parser` in
@@ -24,6 +24,14 @@ does.
 | `✅` / `❌` | `true` / `false` | `E2 9C 85` / `E2 9D 8C` |
 | `⟨` `⟩` | initialiser | `E2 9F A8` / `E2 9F A9` |
 | `≠` | not equal | `E2 89 A0` |
+| `🧩` | function | `F0 9F A7 A9` |
+| `🧱` | structure | `F0 9F A7 B1` |
+| `📥` | read | `F0 9F 93 A5` |
+| `📢` | print | `F0 9F 93 A2` |
+| `→` | result type | `E2 86 92` |
+
+ASCII `,` separates arguments, parameters and values, and `.` selects a field. A
+string literal is `"…"` on one line, with no escapes.
 
 No keyword is spelled with letters. An identifier is always an identifier, so
 the lexer's `IDENT` state has no keyword table behind it.
@@ -88,7 +96,9 @@ which is what lets a block span lines. `3⃣ x ⟨ 5` is still an error at the s
 place, now `1:8: expected '}', found end of line`.
 
 The parser is recursive descent, written by hand: `peek`, `eat`, `expect`, and
-one method per grammar rule. One token of look-ahead decides every choice. The
+one method per grammar rule. One token of look-ahead decides every choice but
+one: a line starting with an identifier needs the second token to tell an
+object declaration (`Point p ⟨…⟩`) from an assignment or a call. The
 tree holds names, numbers, flags and child nodes — never a token — so every node
 carries the `line, col` of the token it came from, and later passes report their
 errors from there.
@@ -165,6 +175,157 @@ follows an `🚪` inside the same block.
 }
 🚪 sum
 ```
+
+## Functions
+
+Every rule below is covered by one program that follows it (`ok/`) and one
+that breaks it (`err/`).
+
+**A function is declared only at top level.** It has a name, zero or more
+parameters (each a type and a name) and exactly one result type: `i32`, `i64`
+or `bool`. A `🧩` inside a block is a syntax error, and so is a `🔓` on a
+function that is not a member. Follows `fn_add`; breaks `fn_in_block`,
+`fn_mut_top-level`, `fn_duplicate`.
+
+**`🚪` leaves the body it is in.** In a function it returns its value, and at
+top level it prints and ends the program, as in stage 1. A function body ends
+with `🚪`, and a `🚪` in a nested block leaves too. The value's type is the
+result type, and an `i32` is accepted for an `i64`. Follows `fn_exit_in_loop`,
+`fn_recursive`; breaks `fn_no_exit`, `fn_result_type`.
+
+```
+🧩 add(3⃣ a, 3⃣ b) → 3⃣
+{
+    3⃣ s ⟨a + b⟩
+    🚪 s
+}
+🚪 add(1, add(2, 3))          6
+```
+
+**A call takes as many arguments as there are parameters, each of the
+parameter's type.** Only `i32 → i64` widens. Arguments are full expressions
+and may be calls. A call may stand alone on a line, and its value is then
+discarded. A function may call itself and any function above or below it.
+Follows `fn_add`, `fn_recursive`, `fn_forward`, `fn_call_stmt`; breaks
+`fn_too_many_args`, `fn_too_few_args`, `fn_arg_type`, `fn_unknown`.
+
+**Parameters are constant and share the body's outermost frame.** So `n := …`
+on a parameter is an error, and so is a local declared with a parameter's name.
+Breaks `param_assign`, `param_redeclared`.
+
+**A function body sees its parameters, its locals, every function, and the
+globals declared above the function.** A global is a variable or object at the
+outermost level of the program. A variable in a top-level `🤔`/`🔁` block is not
+a global. Follows `global_visible`; breaks `fn_global_below`.
+
+Globals are LLVM globals, zero-initialised, and stored when `main` reaches
+their line. A function declared below a global, but called by a statement above
+it, therefore reads that global as 0 (`global_read_zero`). This is documented
+rather than tracked.
+
+## Structures
+
+**A structure is declared at top level with at least one field.** A field is a
+type and a name, unique in the structure, and fields come before the member
+functions. A field's type is `i32`, `i64`, `bool` or a structure declared
+above, so a structure never contains itself. Breaks `struct_contains-itself`,
+`struct_field-after-member`, `struct_unknown`.
+
+**A field is constant unless marked `🔓`**, exactly as a variable is.
+
+```
+🧱 Point
+{
+    3⃣ 🔓 x
+    3⃣ y
+    🧩 d2() → 3⃣
+    {
+        🚪 x * x + y * y
+    }
+}
+🧱 Circle
+{
+    Point 🔓 center
+    3⃣ r
+}
+```
+
+**An object is created with one value per field, in field order.** A
+structure-typed field takes a nested `⟨ ⟩`. The object is constant unless
+marked `🔓`. It is never copied: an object is not a value of `:=`, an argument,
+a result, or the value of `🚪`. Follows `struct_chain`; breaks `object_count`,
+`object_copy`, `object_exit`.
+
+```
+Circle 🔓 c ⟨⟨1, 2⟩, 5⟩
+```
+
+**`.` selects a field that exists in the structure on its left.** A chain
+reads left to right, and may end in one member call. Follows `struct_point`;
+breaks `field_unknown`.
+
+**A field is assigned only through a chain that is `🔓` at every step**: the
+root variable and every field on the path, the last one included. The error is
+at the first constant step. Follows `struct_chain`; breaks `field_const_chain`.
+
+```
+c.center.x := 10
+```
+
+**A member function is called on an object as `obj.f(args)`.** Calls on
+anything else are errors, and so are calls of members the structure does not
+have. Follows `struct_member_call`; breaks `member_unknown`, `call_on_scalar`.
+
+**A member marked `🔓` is mutating, and only a mutating member may assign a
+field or call another mutating member by bare name.** A mutating member is
+called only through a chain that is `🔓` at every step. Follows `struct_chain`;
+breaks `member_unmarked_mutates`, `member_mutating_on_const`.
+
+```
+🧩 🔓 move(3⃣ dx, 3⃣ dy) → 3⃣
+```
+
+**Inside a member function a name is looked up among the parameters and locals
+(innermost block first), then the fields of the structure, then the globals
+declared above the structure.** The first match wins. A bare call looks at the
+structure's members first, then at the top-level functions. Variables and
+functions are separate namespaces: a name followed by `(` is a function.
+Follows `struct_lookup_order`; breaks `member_global_below`.
+
+## read and print
+
+**`📥` is an `i32` expression that reads one integer from standard input**, and
+it goes wherever an expression does. Follows `read_sum`, `struct_member_call`;
+breaks `read_into_bool`.
+
+**`📢` prints one or more comma-separated values back to back, with no
+separator, and then exactly one newline.** An integer prints in decimal, a bool
+as `true`/`false`, and a string literal as is. A string literal appears nowhere
+else. Follows `print_values`, `fn_call_stmt`; breaks `string_outside_print`,
+`string_unclosed`.
+
+**An object prints as its type name and its fields in order, recursively.**
+Follows `struct_print`.
+
+```
+📢 "sum: ", s, " ok: ", s == 9      sum: 9 ok: true
+📢 c                                 Circle { center: Point { x: 3, y: 4 }, r: 5 }
+```
+
+## Code generation for stage 2
+
+- Every function and member function is declared before any body is
+  generated, so a call to a function defined below resolves.
+- IR names carry a prefix that an identifier cannot spell: `kg.add` for a
+  function, `kg.Point.d2` for a member (whose first parameter is the object's
+  pointer), and `kg$x` for a global. Nothing can clash with `main`, `printf` or
+  `scanf`.
+- A structure is an identified struct type, an object is an `alloca` of it, and
+  a field is a `gep` by the index from the symbol table.
+- `printf` and `scanf` are bodiless variadic declarations, and every format
+  string and string literal is a private global constant. `📥` is `scanf("%d")`
+  into an entry-block slot. `📢` prints an `i32` with `%d`, an `i64` with
+  `%lld`, and a bool through a `select` of `"true"`/`"false"` under `%s`.
 
 ## Precedence
 
@@ -341,12 +502,14 @@ Each `NAME.txt` is paired with `NAME.expected`. A program in `tests/ok/` is
 compiled and run through `lli`, and its stdout is compared; a program in
 `tests/err/` must fail with the expected message and leave no output file. Where
 a `tests/ok/NAME.ast` exists, the `--ast` dump is compared against it too.
+Where a `tests/ok/NAME.in` exists, it is the program's standard input, and the
+`.expected` file holds only what the program prints.
 
 Everything needed is in the `Dockerfile`:
 
 ```sh
-docker build -t lcd-stage1 .
-docker run --rm -v "$PWD:/work" lcd-stage1 ./run_tests.sh
+docker build -t lcd-stage2 .
+docker run --rm -v "$PWD:/work" lcd-stage2 ./run_tests.sh
 ```
 
 `check.py` runs the same programs and prints one row per test with a pass count
@@ -360,8 +523,8 @@ lexer.py        byte-by-byte state machine over UTF-8, incl. the keycap lookahea
 grammar.ebnf    the grammar, one rule per parse method
 design.md       the language design and why each choice was made
 compiler.py     the AST classes, the parser, the semantic pass, the codegen walk
-tests/ok/       40 programs that run, 15 of them with expected trees
-tests/err/      53 programs that must fail
+tests/ok/       54 programs that run, 17 with expected trees, 2 with stdin
+tests/err/      81 programs that must fail
 run_tests.sh    compiles and runs each test, compares against .expected
 check.py        the same tests as a pass/fail table
 port_corpus.py  the one-off script that ported the corpus to this syntax

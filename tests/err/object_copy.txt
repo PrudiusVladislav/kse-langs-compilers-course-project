@@ -1,0 +1,9 @@
+🧱 Point
+{
+    3⃣ x
+    3⃣ y
+}
+Point 🔓 p ⟨1, 2⟩
+Point q ⟨3, 4⟩
+p := q
+🚪 0

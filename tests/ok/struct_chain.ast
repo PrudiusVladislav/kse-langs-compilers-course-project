@@ -1,0 +1,53 @@
+Program
+  Struct Point
+    Field x i32 mut
+    Field y i32 mut
+    Member move -> i32 mutating
+      Param dx i32
+      Param dy i32
+      Block
+        Assign x
+          BinOp +
+            Var x
+            Var dx
+        Assign y
+          BinOp +
+            Var y
+            Var dy
+        Exit
+          Call sum args=0
+    Member sum -> i32
+      Block
+        Exit
+          BinOp +
+            Var x
+            Var y
+  Struct Circle
+    Field center Point mut
+    Field r i32 const
+  Object c Circle mut
+    Init
+      Init
+        Const 1
+        Const 2
+      Const 5
+  FieldAssign
+    Dot x
+      Dot center
+        Var c
+    Const 10
+  Decl s i32 const
+    MemberCall move args=2
+      Dot center
+        Var c
+      Const 1
+      Const 1
+  Exit
+    BinOp +
+      Var s
+      BinOp *
+        Dot y
+          Dot center
+            Var c
+        Dot r
+          Var c

@@ -1,0 +1,1 @@
+compilation error: line 3:7: 'check' must leave with bool, got i32

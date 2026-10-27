@@ -1,0 +1,9 @@
+3⃣ 🔓 count ⟨📥⟩
+3⃣ 🔓 total ⟨0⟩
+🔁 count ≠ 0
+{
+    total := total + 📥
+    count := count - 1
+}
+📢 "sum: ", total
+🚪 total
