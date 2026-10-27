@@ -1,11 +1,11 @@
-i32 mut a{10}
-bool b{true}
-if b
+3⃣ 🔓 a ⟨ 10 ⟩
+❓ b ⟨ ✅ ⟩
+🤔 b
 {
     a := a + 5
 }
-else
+🙃
 {
     a := a - 5
 }
-exit a
+🚪 a

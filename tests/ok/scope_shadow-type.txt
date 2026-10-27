@@ -1,12 +1,12 @@
-i32 mut x{10}
-if true
+3⃣ 🔓 x ⟨ 10 ⟩
+🤔 ✅
 {
-    bool mut x{true}
-    if x
+    ❓ 🔓 x ⟨ ✅ ⟩
+    🤔 x
     {
-        i64 mut x{20}
-        exit x
+        6⃣ 🔓 x ⟨ 20 ⟩
+        🚪 x
     }
-    exit x
+    🚪 x
 }
-exit x
+🚪 x

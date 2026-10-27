@@ -1,2 +1,2 @@
-i32 mut x{x}
-exit x
+3⃣ 🔓 x ⟨ x ⟩
+🚪 x

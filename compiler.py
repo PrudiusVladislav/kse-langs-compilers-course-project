@@ -11,6 +11,7 @@ FORMAT_TRUE = b"Program exit with result true\n\0"
 FORMAT_FALSE = b"Program exit with result false\n\0"
 IR_TYPES = {"i32": I32, "i64": I64, "bool": I1}
 I32_MAX, I64_MAX = 2**31 - 1, 2**63 - 1
+I32_MIN, I64_MIN = -(2**31), -(2**63)
 
 TYPES = {"kw_i32": "i32", "kw_i64": "i64", "kw_bool": "bool"}
 BOOLS = {"kw_true": True, "kw_false": False}
@@ -21,6 +22,13 @@ MUL_OPS = {"star": "*"}
 
 def wider(a, b):
     return "i64" if "i64" in (a, b) else a
+
+
+def literal_value(expr):
+    """The constant an expression is, after negation folding, or None."""
+    if isinstance(expr, ConstNode):
+        return expr.value
+    return getattr(expr, "folded", None)
 
 
 class Node:
@@ -193,6 +201,21 @@ class NotNode(ExprNode):
         return visitor.visit_not(self)
 
 
+class NegNode(ExprNode):
+    def __init__(self, line, col, operand):
+        super().__init__(line, col)
+        self.operand = operand
+
+    def label(self):
+        return "Neg"
+
+    def children(self):
+        return [self.operand]
+
+    def accept(self, visitor):
+        return visitor.visit_neg(self)
+
+
 class VarNode(ExprNode):
     def __init__(self, line, col, name):
         super().__init__(line, col)
@@ -227,6 +250,9 @@ class BoolNode(ExprNode):
 
     def accept(self, visitor):
         return visitor.visit_bool(self)
+
+
+UNARY_OPS = {"not": NotNode, "minus": NegNode}
 
 
 class Parser:
@@ -273,8 +299,6 @@ class Parser:
         tok = self.peek()
         if tok is None:
             raise self.error("expected a constant or a variable")
-        if tok.kind == "minus":
-            raise CompileError(tok.line, tok.col, "negative numbers are not supported")
         if tok.kind == "number":
             self.eat()
             return ConstNode(tok.line, tok.col, int(tok.text))
@@ -284,9 +308,14 @@ class Parser:
         if tok.kind == "ident":
             self.eat()
             return VarNode(tok.line, tok.col, tok.text)
-        if tok.kind == "not":
+        if tok.kind in UNARY_OPS:
             self.eat()
-            return NotNode(tok.line, tok.col, self.parse_factor())
+            return UNARY_OPS[tok.kind](tok.line, tok.col, self.parse_factor())
+        if tok.kind == "lparen":
+            self.eat()
+            node = self.parse_expr()
+            self.expect("rparen", "')'")
+            return node
         raise self.error("expected a constant or a variable")
 
     def parse_term(self):
@@ -316,13 +345,13 @@ class Parser:
         if mutable:
             self.eat()
         name = self.expect("ident", "a variable name")
-        if self.peek() is None or self.peek().kind != "lbrace":
+        if self.peek() is None or self.peek().kind != "langle":
             raise CompileError(
-                name.line, name.col, f"variable '{name.text}' needs an initialiser in {{}}"
+                name.line, name.col, f"variable '{name.text}' needs an initialiser in ⟨⟩"
             )
         self.eat()
         init = self.parse_expr()
-        self.expect("rbrace", "'}'")
+        self.expect("rangle", "'⟩'")
         return DeclNode(name.line, name.col, name.text, type_name, mutable, init)
 
     def parse_assign(self):
@@ -341,7 +370,7 @@ class Parser:
             raise CompileError(brace.line, brace.col, "'{' is never closed")
         if toks[0].kind != "rbrace":
             raise CompileError(
-                toks[0].line, toks[0].col, "statement after 'exit' in the same block"
+                toks[0].line, toks[0].col, "statement after '\U0001f6aa' in the same block"
             )
         if not statements and exit_node is None:
             raise CompileError(brace.line, brace.col, "empty block")
@@ -354,24 +383,24 @@ class Parser:
         tok = self.eat()
         cond = self.parse_expr()
         self.end_line()
-        then_block = self.parse_block("if")
+        then_block = self.parse_block(tok.text)
         else_block = None
         if (toks := self.peek_line()) is not None and toks[0].kind == "kw_else":
             self.next_line()
-            self.eat()
+            els = self.eat()
             self.end_line()
-            else_block = self.parse_block("else")
+            else_block = self.parse_block(els.text)
         return IfNode(tok.line, tok.col, cond, then_block, else_block)
 
     def parse_while(self):
         tok = self.eat()
         cond = self.parse_expr()
         self.end_line()
-        return WhileNode(tok.line, tok.col, cond, self.parse_block("while"))
+        return WhileNode(tok.line, tok.col, cond, self.parse_block(tok.text))
 
     def parse_exit(self):
         tok = self.eat()
-        return ExitNode(tok.line, tok.col, self.parse_factor())
+        return ExitNode(tok.line, tok.col, self.parse_expr())
 
     def parse_statement(self):
         tok = self.peek()
@@ -384,7 +413,7 @@ class Parser:
         if tok.kind == "kw_while":
             return self.parse_while()
         if tok.kind == "kw_else":
-            raise CompileError(tok.line, tok.col, "'else' without an 'if'")
+            raise CompileError(tok.line, tok.col, "'\U0001f643' without a '\U0001f914'")
         raise CompileError(tok.line, tok.col, f"'{tok.text}' does not start a statement")
 
     def parse_body(self):
@@ -405,13 +434,13 @@ class Parser:
             tok = toks[0]
             if tok.kind == "rbrace":
                 raise CompileError(tok.line, tok.col, "'}' without a matching '{'")
-            raise CompileError(tok.line, tok.col, "'exit' must be the last statement")
+            raise CompileError(tok.line, tok.col, "'\U0001f6aa' must be the last statement")
 
         if exit_node is None:
             if not statements:
-                raise CompileError(1, 1, "the program is empty: it must end with 'exit'")
+                raise CompileError(1, 1, "the program is empty: it must end with '\U0001f6aa'")
             last = statements[-1]
-            raise CompileError(last.line, last.col, "the program must end with 'exit'")
+            raise CompileError(last.line, last.col, "the program must end with '\U0001f6aa'")
         return ProgramNode(1, 1, statements, exit_node)
 
 
@@ -437,8 +466,8 @@ class SemanticChecker:
         have = expr.type
         if have == want or (have == "i32" and want == "i64"):
             return
-        if isinstance(expr, ConstNode) and have == "i64" and want == "i32":
-            raise CompileError(expr.line, expr.col, f"constant {expr.value} does not fit in i32")
+        if (value := literal_value(expr)) is not None and have == "i64" and want == "i32":
+            raise CompileError(expr.line, expr.col, f"constant {value} does not fit in i32")
         raise CompileError(
             at.line, at.col, f"cannot {what} of type {want} with a value of type {have}"
         )
@@ -461,20 +490,20 @@ class SemanticChecker:
         decl = self.lookup(node)
         if not decl.mutable:
             raise CompileError(
-                node.line, node.col, f"cannot assign to '{node.name}': it is not mut"
+                node.line, node.col, f"cannot assign to '{node.name}': it is not \U0001f513"
             )
         node.decl = decl
         node.value.accept(self)
         self.check_assignable(node.value, decl.type_name, node, f"assign to '{node.name}'")
 
     def visit_if(self, node):
-        self.check_condition(node, "if")
+        self.check_condition(node, "\U0001f914")
         node.then_block.accept(self)
         if node.else_block:
             node.else_block.accept(self)
 
     def visit_while(self, node):
-        self.check_condition(node, "while")
+        self.check_condition(node, "\U0001f501")
         node.body.accept(self)
 
     def visit_block(self, node):
@@ -490,7 +519,7 @@ class SemanticChecker:
 
     def visit_binop(self, node):
         lt, rt = node.left.accept(self), node.right.accept(self)
-        if node.op in "+-*":
+        if node.op in ADD_OPS.values() or node.op in MUL_OPS.values():
             if "bool" in (lt, rt):
                 raise CompileError(node.line, node.col, f"cannot apply '{node.op}' to bool")
             node.type = wider(lt, rt)
@@ -506,15 +535,27 @@ class SemanticChecker:
         node.type = "bool"
         return node.type
 
+    def visit_neg(self, node):
+        if isinstance(node.operand, ConstNode):
+            node.folded = -node.operand.value
+            return self.range_check(node, node.folded)
+        if (have := node.operand.accept(self)) == "bool":
+            raise CompileError(node.line, node.col, "cannot apply '-' to bool")
+        node.type = have
+        return node.type
+
     def visit_var(self, node):
         node.decl = self.lookup(node)
         node.type = node.decl.type_name
         return node.type
 
     def visit_const(self, node):
-        if node.value > I64_MAX:
-            raise CompileError(node.line, node.col, f"constant {node.value} does not fit in i64")
-        node.type = "i32" if node.value <= I32_MAX else "i64"
+        return self.range_check(node, node.value)
+
+    def range_check(self, node, value):
+        if not I64_MIN <= value <= I64_MAX:
+            raise CompileError(node.line, node.col, f"constant {value} does not fit in i64")
+        node.type = "i32" if I32_MIN <= value <= I32_MAX else "i64"
         return node.type
 
     def visit_bool(self, node):
@@ -524,7 +565,7 @@ class SemanticChecker:
 
 class CodeGen:
     def __init__(self):
-        self.module = ir.Module(name="practice5")
+        self.module = ir.Module(name="kaguya")
         self.module.triple = llvm.get_default_triple()
 
         self.function = ir.Function(self.module, ir.FunctionType(I32, []), name="main")
@@ -643,6 +684,11 @@ class CodeGen:
 
     def visit_not(self, node):
         return self.builder.xor(node.operand.accept(self), ir.Constant(I1, True))
+
+    def visit_neg(self, node):
+        if hasattr(node, "folded"):
+            return ir.Constant(IR_TYPES[node.type], node.folded)
+        return self.builder.neg(self.coerce(node.operand.accept(self), node.operand.type, node.type))
 
     def visit_var(self, node):
         return self.builder.load(self.slots[node.decl])

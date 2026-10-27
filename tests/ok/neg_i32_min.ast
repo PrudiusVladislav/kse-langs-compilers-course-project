@@ -1,0 +1,6 @@
+Program
+  Decl x i32 const
+    Neg
+      Const 2147483648
+  Exit
+    Var x

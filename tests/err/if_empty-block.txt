@@ -1,5 +1,5 @@
-bool b{true}
-if b
+❓ b ⟨ ✅ ⟩
+🤔 b
 {
 }
-exit 0
+🚪 0

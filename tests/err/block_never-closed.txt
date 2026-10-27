@@ -1,4 +1,4 @@
-bool b{true}
-if b
+❓ b ⟨ ✅ ⟩
+🤔 b
 {
-    exit 1
+    🚪 1
