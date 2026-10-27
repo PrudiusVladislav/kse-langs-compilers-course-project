@@ -1,0 +1,17 @@
+🧱 Point
+{
+    3⃣ 🔓 x
+    3⃣ y
+    🧩 🔓 move(3⃣ d) → 3⃣
+    {
+        x := x + d
+        🚪 x
+    }
+}
+🧱 Circle
+{
+    Point center
+    3⃣ r
+}
+Circle 🔓 c ⟨⟨1, 2⟩, 5⟩
+🚪 c.center.move(1)

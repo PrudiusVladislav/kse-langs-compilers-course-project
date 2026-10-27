@@ -1,0 +1,25 @@
+🧱 Point
+{
+    3⃣ 🔓 x
+    3⃣ y
+    🧩 🔓 move(3⃣ d) → 3⃣
+    {
+        x := x + d
+        🚪 x
+    }
+}
+🧱 Circle
+{
+    Point 🔓 center
+    3⃣ 🔓 r
+    🧩 🔓 grow(3⃣ d) → 3⃣
+    {
+        r := r + d
+        center.x := center.x + d
+        🚪 center.move(d)
+    }
+}
+Circle 🔓 c ⟨⟨1, 2⟩, 5⟩
+📢 c.grow(10)
+📢 c
+🚪 c.r

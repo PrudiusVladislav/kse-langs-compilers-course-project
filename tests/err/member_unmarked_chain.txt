@@ -1,0 +1,15 @@
+🧱 Point
+{
+    3⃣ 🔓 x
+}
+🧱 Circle
+{
+    Point 🔓 center
+    🧩 reset() → 3⃣
+    {
+        center.x := 0
+        🚪 0
+    }
+}
+Circle 🔓 c ⟨⟨1⟩⟩
+🚪 c.reset()

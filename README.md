@@ -262,11 +262,12 @@ Circle 🔓 c ⟨⟨1, 2⟩, 5⟩
 
 **`.` selects a field that exists in the structure on its left.** A chain
 reads left to right, and may end in one member call. Follows `struct_point`;
-breaks `field_unknown`.
+breaks `field_unknown`, `dot_on_scalar`.
 
 **A field is assigned only through a chain that is `🔓` at every step**: the
 root variable and every field on the path, the last one included. The error is
-at the first constant step. Follows `struct_chain`; breaks `field_const_chain`.
+at the first constant step. Follows `struct_chain`; breaks `field_const_chain`,
+`field_const_last`, `field_object_copy`.
 
 ```
 c.center.x := 10
@@ -278,8 +279,11 @@ have. Follows `struct_member_call`; breaks `member_unknown`, `call_on_scalar`.
 
 **A member marked `🔓` is mutating, and only a mutating member may assign a
 field or call another mutating member by bare name.** A mutating member is
-called only through a chain that is `🔓` at every step. Follows `struct_chain`;
-breaks `member_unmarked_mutates`, `member_mutating_on_const`.
+called only through a chain that is `🔓` at every step. Follows `struct_chain`,
+`struct_mutating_chain`; breaks `member_unmarked_mutates`,
+`member_unmarked_calls_mutating`, `member_unmarked_chain`,
+`member_assign_const_field`, `member_mutating_on_const`,
+`member_mutating_through_field`.
 
 ```
 🧩 🔓 move(3⃣ dx, 3⃣ dy) → 3⃣
@@ -523,8 +527,8 @@ lexer.py        byte-by-byte state machine over UTF-8, incl. the keycap lookahea
 grammar.ebnf    the grammar, one rule per parse method
 design.md       the language design and why each choice was made
 compiler.py     the AST classes, the parser, the semantic pass, the codegen walk
-tests/ok/       54 programs that run, 17 with expected trees, 2 with stdin
-tests/err/      81 programs that must fail
+tests/ok/       55 programs that run, 17 with expected trees, 2 with stdin
+tests/err/      88 programs that must fail
 run_tests.sh    compiles and runs each test, compares against .expected
 check.py        the same tests as a pass/fail table
 port_corpus.py  the one-off script that ported the corpus to this syntax

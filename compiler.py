@@ -839,9 +839,10 @@ class SemanticChecker:
         self.struct = None
 
     def lookup(self, node):
+        frames = self.scopes[::-1]
         if self.struct is not None:
-            return self.lookup_in_member(node)
-        for frame in reversed(self.scopes):
+            frames = frames[:-1] + [self.struct.fields, self.scopes[0]]
+        for frame in frames:
             if node.name in frame:
                 return frame[node.name]
         raise CompileError(
@@ -939,23 +940,49 @@ class SemanticChecker:
                 self.check_assignable(value, field.type_name, value, f"initialise '{field.name}'")
         init.struct = struct
 
-    def lookup_in_member(self, node):
-        raise NotImplementedError
+    def require_mutating(self, at, action):
+        if not self.function.mutating:
+            raise CompileError(
+                at.line, at.col, f"'{self.function.name}' is not \U0001f513 and cannot {action}"
+            )
 
-    def lookup_call_in_member(self, node):
-        raise NotImplementedError
-
-    def check_field_assign(self, node, field):
-        raise NotImplementedError
-
-    def check_mutating_call(self, node, member):
-        raise NotImplementedError
+    def check_chain(self, chain, action):
+        if isinstance(chain, DotNode):
+            self.check_chain(chain.target, action)
+            symbol = chain.field
+        else:
+            symbol = chain.decl
+            if isinstance(symbol, FieldSymbol):
+                self.require_mutating(chain, f"{action} through '{chain.name}'")
+        if not symbol.mutable:
+            raise CompileError(
+                chain.line, chain.col,
+                f"cannot {action} through '{chain.name}': it is not \U0001f513",
+            )
 
     def visit_dot(self, node):
-        raise NotImplementedError
+        struct = node.target.accept(self)
+        if not isinstance(struct, StructSymbol):
+            raise CompileError(
+                node.line, node.col, f"cannot select '{node.name}' from a value of type {struct}"
+            )
+        if node.name not in struct.fields:
+            raise CompileError(
+                node.line, node.col, f"structure '{struct}' has no field '{node.name}'"
+            )
+        node.field = struct.fields[node.name]
+        node.type = node.field.type_name
+        return node.type
 
     def visit_field_assign(self, node):
-        raise NotImplementedError
+        target = node.target
+        if not is_scalar(target.accept(self)):
+            raise CompileError(
+                target.line, target.col, f"cannot assign to '{target.name}': objects are not copied"
+            )
+        self.check_chain(target, "assign")
+        node.value.accept(self)
+        self.check_assignable(node.value, target.type, node, f"assign to '{target.name}'")
 
     def visit_program(self, node):
         for statement in node.statements:
@@ -1025,9 +1052,12 @@ class SemanticChecker:
                     f"structure '{struct}' has no member function '{node.name}'",
                 )
             func = struct.members[node.name]
-            self.check_mutating_call(node, func)
-        elif self.struct is not None:
-            func = self.lookup_call_in_member(node)
+            if func.mutating:
+                self.check_chain(node.target, f"call mutating '{func.name}'")
+        elif self.struct is not None and node.name in self.struct.members:
+            func = self.struct.members[node.name]
+            if func.mutating:
+                self.require_mutating(node, f"call mutating '{func.name}'")
         elif node.name in self.functions:
             func = self.functions[node.name]
         else:
@@ -1060,8 +1090,8 @@ class SemanticChecker:
                 node.line, node.col, f"cannot assign to '{node.name}': objects are not copied"
             )
         if isinstance(decl, FieldSymbol):
-            self.check_field_assign(node, decl)
-        elif not decl.mutable:
+            self.require_mutating(node, f"assign to field '{node.name}'")
+        if not decl.mutable:
             raise CompileError(
                 node.line, node.col, f"cannot assign to '{node.name}': it is not \U0001f513"
             )
@@ -1173,7 +1203,7 @@ class CodeGen:
 
     def slot_of(self, decl):
         if isinstance(decl, FieldSymbol):
-            return self.member_field_slot(decl)
+            return self.field_slot(self.this, decl)
         return self.slots[decl]
 
     def declare_function(self, node):
@@ -1193,29 +1223,72 @@ class CodeGen:
         node.body.accept(self)
         self.builder, self.function, self.func_node = saved
 
+    def field_slot(self, slot, field):
+        return self.builder.gep(slot, [ir.Constant(I32, 0), ir.Constant(I32, field.index)])
+
+    def address(self, chain):
+        if isinstance(chain, DotNode):
+            return self.field_slot(self.address(chain.target), chain.field)
+        return self.slot_of(chain.decl)
+
     def declare_struct(self, node):
-        raise NotImplementedError
+        struct = node.symbol
+        struct.ir_type = self.module.context.get_identified_type(node.name)
+        struct.ir_type.set_body(
+            *[IR_TYPES.get(f.type_name) or f.type_name.ir_type for f in struct.fields.values()]
+        )
+        for member in node.members:
+            fn_type = ir.FunctionType(
+                IR_TYPES[member.result],
+                [struct.ir_type.as_pointer()] + [IR_TYPES[p.type_name] for p in member.params],
+            )
+            self.functions[member] = ir.Function(
+                self.module, fn_type, name=f"kg.{node.name}.{member.name}"
+            )
 
     def visit_struct(self, node):
-        raise NotImplementedError
+        for member in node.members:
+            fn = self.functions[member]
+            self.this = fn.args[0]
+            self.emit_function(member, fn, fn.args[1:])
+        self.this = None
+
+    def store_init(self, init, slot):
+        for value, field in zip(init.values, init.struct.fields.values()):
+            target = self.field_slot(slot, field)
+            if isinstance(value, InitNode):
+                self.store_init(value, target)
+            else:
+                self.builder.store(
+                    self.coerce(value.accept(self), value.type, field.type_name), target
+                )
 
     def visit_object(self, node):
-        raise NotImplementedError
-
-    def member_field_slot(self, field):
-        raise NotImplementedError
+        type = node.type_name.ir_type
+        if node.is_global:
+            slot = self.global_slot(type, node.name)
+        else:
+            slot = self.alloca_entry(type, node.name)
+        self.slots[node] = slot
+        self.store_init(node.init, slot)
 
     def visit_dot(self, node):
-        raise NotImplementedError
+        return self.builder.load(self.address(node))
 
     def visit_field_assign(self, node):
-        raise NotImplementedError
+        value = self.coerce(node.value.accept(self), node.value.type, node.target.type)
+        self.builder.store(value, self.address(node.target))
 
-    def emit_member_call(self, node, args):
-        raise NotImplementedError
-
-    def print_object(self, node):
-        raise NotImplementedError
+    def print_object(self, slot, struct):
+        self.print_text(f"{struct} {{ ")
+        for i, field in enumerate(struct.fields.values()):
+            self.print_text(f"{', ' if i else ''}{field.name}: ")
+            target = self.field_slot(slot, field)
+            if is_scalar(field.type_name):
+                self.print_scalar(self.builder.load(target), field.type_name)
+            else:
+                self.print_object(target, field.type_name)
+        self.print_text(" }")
 
     def coerce(self, value, have, want):
         if have == "i32" and want == "i64":
@@ -1300,7 +1373,7 @@ class CodeGen:
             for arg, param in zip(node.args, node.func.params)
         ]
         if node.func.owner is not None:
-            return self.emit_member_call(node, args)
+            args = [self.this if node.target is None else self.address(node.target)] + args
         return self.builder.call(self.functions[node.func], args)
 
     def visit_read(self, node):
@@ -1315,7 +1388,7 @@ class CodeGen:
             elif is_scalar(value.type):
                 self.print_scalar(value.accept(self), value.type)
             else:
-                self.print_object(value)
+                self.print_object(self.address(value), value.type)
         self.print_text("\n")
 
     def branch_unless_terminated(self, target):
