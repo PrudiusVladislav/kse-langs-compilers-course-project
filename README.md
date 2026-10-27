@@ -42,6 +42,16 @@ seven and will not lex. `port_corpus.py` refuses to write a file containing one.
 
 ## Running
 
+`llvmlite` and the LLVM tools come from the `Dockerfile`, so build the image
+once and open a shell in it, from the repository root:
+
+```sh
+docker build -t lcd-stage2 .
+docker run --rm -it -v "$PWD:/work" lcd-stage2
+```
+
+Inside that shell:
+
 ```sh
 python3 compiler.py input.txt output.ll   # compile
 python3 compiler.py --ast input.txt       # print the tree, write nothing
@@ -139,7 +149,8 @@ y := x * 2 - 1              assignment; only a 🔓 variable may be assigned
 
 An initialiser is delimited by `⟨ ⟩`; `{` and `}` mean a block and nothing
 else. One symbol, one job — so the parser never needs lookahead to tell the two
-apart, and a brace on a declaration line is an ordinary error.
+apart, and a brace on a declaration line is an ordinary error. Follows `const`;
+breaks `no_init`, `brace_in_decl`.
 
 Mutability is const by default: `🔓` is optional and follows the type, which
 keeps a declaration line starting with its type token.
@@ -147,7 +158,9 @@ keeps a declaration line starting with its type token.
 An `🤔` and its condition stand on one line; `{`, `}` and `🙃` stand alone on
 theirs; `🙃` is optional; a block holds at least one line. Blocks nest, since
 an `🤔` is a statement. A block may end with `🚪` as its last line, and nothing
-follows an `🚪` inside the same block.
+follows an `🚪` inside the same block. The program ends with `🚪`. Follows
+`if-else_basic`, `if_exit-in-arm`, `while_sum`; breaks `if_brace-on-if-line`,
+`if_empty-block`, `block_statement-after-exit`, `after_exit`, `no_exit`.
 
 ```
 3⃣ 🔓 a ⟨ 10 ⟩
@@ -211,7 +224,8 @@ Follows `fn_add`, `fn_recursive`, `fn_forward`, `fn_call_stmt`; breaks
 
 **Parameters are constant and share the body's outermost frame.** So `n := …`
 on a parameter is an error, and so is a local declared with a parameter's name.
-Breaks `param_assign`, `param_redeclared`.
+A nested block may shadow a parameter. Follows `param_shadow_in_block`; breaks
+`param_assign`, `param_redeclared`.
 
 **A function body sees its parameters, its locals, every function, and the
 globals declared above the function.** A global is a variable or object at the
@@ -228,10 +242,11 @@ rather than tracked.
 **A structure is declared at top level with at least one field.** A field is a
 type and a name, unique in the structure, and fields come before the member
 functions. A field's type is `i32`, `i64`, `bool` or a structure declared
-above, so a structure never contains itself. Breaks `struct_contains-itself`,
-`struct_field-after-member`, `struct_unknown`.
+above, so a structure never contains itself. Follows `struct_chain`; breaks
+`struct_contains-itself`, `struct_field-after-member`, `struct_unknown`.
 
-**A field is constant unless marked `🔓`**, exactly as a variable is.
+**A field is constant unless marked `🔓`**, exactly as a variable is. Follows
+`struct_point`; breaks `field_const_last`, `member_assign_const_field`.
 
 ```
 🧱 Point
@@ -277,6 +292,10 @@ c.center.x := 10
 anything else are errors, and so are calls of members the structure does not
 have. Follows `struct_member_call`; breaks `member_unknown`, `call_on_scalar`.
 
+```
+🚪 c.center.d2()
+```
+
 **A member marked `🔓` is mutating, and only a mutating member may assign a
 field or call another mutating member by bare name.** A mutating member is
 called only through a chain that is `🔓` at every step. Follows `struct_chain`,
@@ -302,14 +321,16 @@ Follows `struct_lookup_order`; breaks `member_global_below`.
 it goes wherever an expression does. Follows `read_sum`, `struct_member_call`;
 breaks `read_into_bool`.
 
+```
+Point p ⟨📥, 📥⟩
+```
+
 **`📢` prints one or more comma-separated values back to back, with no
 separator, and then exactly one newline.** An integer prints in decimal, a bool
-as `true`/`false`, and a string literal as is. A string literal appears nowhere
-else. Follows `print_values`, `fn_call_stmt`; breaks `string_outside_print`,
-`string_unclosed`.
-
-**An object prints as its type name and its fields in order, recursively.**
-Follows `struct_print`.
+as `true`/`false`, a string literal as is, and an object as its type name and
+its fields in order, recursively. A string literal appears nowhere else.
+Follows `print_values`, `fn_call_stmt`, `struct_print`; breaks
+`string_outside_print`, `string_unclosed`.
 
 ```
 📢 "sum: ", s, " ok: ", s == 9      sum: 9 ok: true
@@ -358,12 +379,20 @@ wrapper for it.
 ## The type rules
 
 - A constant has the narrowest type it fits: `10` is `i32`, `3000000000` is
-  `i64`, anything above `2⁶³−1` is an error.
-- `+ - *` take two integers; the result is the wider type.
+  `i64`, anything above `2⁶³−1` is an error. Follows `i64_const`; breaks
+  `const_overflow_i64`.
+- `+ - *` take two integers; the result is the wider type. Follows `i64_widen`;
+  breaks `bool_arith`.
 - `==` and `≠` take two integers of any widths or two bools; the result is `bool`.
+  Follows `compare_widths`, `bool_compare`; breaks `bool_vs_int`.
 - The one conversion is `i32 → i64`, in an initialiser or an assignment. Nothing
-  narrows, and a bool never meets an integer.
-- The condition of an `🤔` or a `🔁` is a bool, and `!` takes a bool. Unary `-` takes an integer.
+  narrows, and a bool never meets an integer. Follows `i64_widen`; breaks
+  `narrowing_init`.
+- The condition of an `🤔` or a `🔁` is a bool (follows `if-else_basic`, breaks
+  `if_cond-not-bool`), `!` takes a bool (follows `not_operator`, breaks
+  `not_on-int`), and unary `-` takes an integer (follows `unary_minus`, breaks
+  `neg_on_bool`).
+- Only a `🔓` variable may be assigned. Follows `mut`; breaks `assign_const`.
 
 `CodeGen` turns every widening the checker allowed into an explicit `sext` via
 one `coerce` helper, called from the initialiser, the assignment, both operands
@@ -380,6 +409,8 @@ declaration goes into the top frame, and only the top frame is checked for a
 duplicate — so an outer name may be declared again inside, with any type. A use
 walks the frames from the top down and takes the first hit; a name whose frame
 has been popped is "used before its declaration" like any other unknown name.
+Follows `scope_shadow-type`; breaks `scope_redeclare-in-block`,
+`scope_use-after-block`.
 
 ```
 3⃣ 🔓 x ⟨ 10 ⟩
@@ -527,7 +558,7 @@ lexer.py        byte-by-byte state machine over UTF-8, incl. the keycap lookahea
 grammar.ebnf    the grammar, one rule per parse method
 design.md       the language design and why each choice was made
 compiler.py     the AST classes, the parser, the semantic pass, the codegen walk
-tests/ok/       55 programs that run, 17 with expected trees, 2 with stdin
+tests/ok/       56 programs that run, 17 with expected trees, 2 with stdin
 tests/err/      88 programs that must fail
 run_tests.sh    compiles and runs each test, compares against .expected
 check.py        the same tests as a pass/fail table
