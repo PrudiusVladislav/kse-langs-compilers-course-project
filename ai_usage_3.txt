@@ -1,0 +1,1795 @@
+ ▐▛███▛█   Claude Code v2.1.319
+▝▜██████▀  Opus 5.5 · Claude Ultra
+ ▝▝   ▝▝   ~/Documents/kse-lang-compilers/kse-langs-compilers-course-project
+
+
+❯ read @../kse-langs-compilers-course-project/w10-project-stage3.pdf claude.md
+  design.md grammar.ebnf the readme and the code first, we are on branch stage3
+  made from stage2. this turn is only planning, no code and no commits. i dont
+  design, i pick, so everything goes as multiple choice with your pick marked.
+  first the feature for task 1: give me 3 or 4 options from the menu that fit
+  kaguya best, each with what it costs in the lexer parser checker and codegen,
+  what its ir excerpt would show, and how visibly a real program can use it.
+  we already have 🔁 while so say honestly if loops is too thin to be worth 5
+  points. then design the chosen feature with me one decision at a time, 2 to 4
+  options each with a one line kaguya example, rule before syntax like the pdf
+  asks, and every stage 2 program has to stay valid and print the same. then
+  the same for the optimizer wherever there is a real choice, like which shapes
+  we inline and which we leave alone, how renaming avoids collisions with the
+  caller, and what counts as reading a variable. last, the real program: 3 or 4
+  ideas that use the feature visibly plus a struct with a member function, a
+  function, read and print. write all of it into design.md and give me a short
+  plan split by who does what, then stop and wait for me
+  ⎿  Read w10-project-stage3.pdf (80KB)
+
+  Read 3 files, listed 2 directories, ran 1 shell command (ctrl+o to expand)
+
+⏺ Read everything; now writing the Stage 3 options into design.md.
+
+⏺ Bash(cat >> design.md <<'EOF'…)
+  ⎿  Updated design.md (+224 -0)
+      338    documented rather than tracked.
+      339  - `printf` and `scanf` are bodiless variadic declarations, and
+            every format
+      340    string is a private global constant.
+      341 +
+      342 +# Stage 3 — decisions to pick
+      343 +
+      344 +Every decision below is a menu. ✔ marks my pick; you choose. E
+          +ach rule comes
+      345 +before its syntax. Nothing here breaks a Stage 2 program: ever
+          +y new construct
+      346 +starts with a token that was an error before (`[`, `]`) or add
+          +s an optional
+      347 +mark in a place that used to reject it.
+      348 +
+      349 +Two facts about Kaguya shape every choice: it has no `<`, `>`,
+          + `/` or `%`, so
+      350 +a program can only compare with `==` and `≠` and compute with
+          +`+ - *`; and
+      351 +objects are never copied, so anything aggregate is passed by r
+          +eference or not
+      352 +at all.
+      353 +
+      354 +## F. Which feature (Task 1, 5 pt)
+      355 +
+      356 +| | Arrays ✔ | Coroutines | Inheritance | Overloading |
+      357 +|---|---|---|---|---|
+      358 +| lexer | `[` `]` as two `SINGLES` | 2 glyphs: coroutine, yiel
+          +d | 2 glyphs: extends, virtual | nothing |
+      359 +| parser | `[N]` after a type; `[e]` as a chain link; reuse `p
+          +arse_init` | coroutine header, yield stmt, resume call | `🧱 B
+          + ⬅ A`, mark on a member | nothing |
+      360 +| checker | array type (elem, size), constant-index range chec
+          +k, `🔓` array params, "not a value" rules | yield only inside
+          +a coroutine, yield type, resume type, done state | merged fiel
+          +d table, duplicate across base, override signature match, memb
+          +er lookup through base | functions keyed by name + params, ran
+          +ked resolution with `i32→i64`, ambiguity error |
+      361 +| codegen | `ArrayType` alloca/field, gep `[0, i]`, bounds che
+          +ck block calling `dprintf` + `exit`, array params as pointers
+          +| locals and resume index moved into a state struct, `switch`
+          +into the resume block, `slot_of` returns a gep instead of an a
+          +lloca | vptr at index 0, one vtable global per structure, load
+          +-gep-load-call, bitcast `this` to base | mangled names `kg.f.i
+          +32.i64` |
+      362 +| IR excerpt | `icmp ult` → `br` to an `oob` block, then the `
+          +gep` | the state struct and the `switch i32 %state` | the vtab
+          +le constant and the indirect `call` | two definitions, two cal
+          +ls picking each |
+      363 +| visibility in a real program | high: a board, a stock list,
+          +a score table | high: a generator or a task scheduler | medium
+          +: shapes, needs a base member calling a virtual one, since obj
+          +ects are never parameters | low: reads as convenience |
+      364 +| cost | medium | high | high | low, and looks thin at the def
+          +ence |
+      365 +
+      366 +**Why arrays.** Every row of the handout's checklist is a test
+          + you can write
+      367 +and see fail; it extends rules Kaguya already has (const by de
+          +fault, `🔓` on
+      368 +every step of a chain, never copied) instead of adding a new m
+          +odel; and the
+      369 +run-time bounds error is a demo in itself. The interpreter's b
+          +acking store
+      370 +already supports it: allocas live in entry, chains already wal
+          +k geps.
+      371 +
+      372 +**Loops — too thin, honestly.** Of the five items in the row,
+          +three already
+      373 +ship in Stage 2 and were built in class: `🔁` with a condition
+          +, the back edge
+      374 +(`cond`/`body`/`end`), a loop inside a loop, a body that decla
+          +res a variable.
+      375 +What is left is `for` over a range and an optional `break` — a
+          + day's work, and
+      376 +the IR excerpt would show a back edge Stage 2 already prints.
+          +The handout asks
+      377 +for a feature "not built in class"; I would not bet 5 points o
+          +n it.
+     … 187 more lines (ctrl+o to expand)
+
+⏺ Bash(sed -i '' "s/run-time bounds error is a demo in itself. The interpreter's
+      backing store/run-time bounds error is a demo in itself. Codegen already
+      does the hard…)
+  ⎿  369:run-time bounds error is a demo in itself. Codegen already does th
+     e hard part:
+     370-allocas live in entry, chains already walk geps.
+      M design.md
+  ⎿  Updated design.md (+2 -2)
+      366  **Why arrays.** Every row of the handout's checklist is a test
+            you can write
+      367  and see fail; it extends rules Kaguya already has (const by de
+           fault, `🔓` on
+      368  every step of a chain, never copied) instead of adding a new m
+           odel; and the
+      369 -run-time bounds error is a demo in itself. The interpreter's b
+          -acking store
+      370 -already supports it: allocas live in entry, chains already wal
+          -k geps.
+      369 +run-time bounds error is a demo in itself. Codegen already doe
+          +s the hard part:
+      370 +allocas live in entry, chains already walk geps.
+      371
+      372  **Loops — too thin, honestly.** Of the five items in the row,
+           three already
+      373  ship in Stage 2 and were built in class: `🔁` with a condition
+           , the back edge
+
+⏺ I've added a "Stage 3 — decisions to pick" section to the end of design.md.
+  It's all multiple choice with my pick marked ✔. I wrote no code and made no
+  commits.
+
+  Feature (F). I compared Arrays, Coroutines, Inheritance and Overloading across
+  lexer, parser, checker and codegen, plus the IR excerpt and how visible each
+  is in a program. My pick is Arrays. Every required item can be shown by a
+  test. It builds on rules Kaguya already has: constant by default, 🔓 on every
+  step of a chain, and objects that are never copied. The run-time bounds error
+  also makes a good demo.
+
+  Loops are too thin. Stage 2 already has 🔁, the back edge, a loop inside a
+  loop, and a body that declares a variable. That leaves only for and break, and
+  the handout wants a feature "not built in class".
+
+  Arrays (A1–A9). My picks, one rule each:
+  - Elements are built-in types only.
+  - The size goes after the type: 3⃣[9] 🔓 b ⟨0⟩.
+  - A single initial value fills the whole array.
+  - Arrays are allowed as struct fields.
+  - Indexing is one-dimensional.
+  - A constant index out of range is a compile error. Any other index is checked
+    at run time and fails with a message on stderr and exit code 1.
+  - Function parameters are sized, and only array parameters may be marked 🔓.
+  - 📢 prints an array as [1, 0, 2].
+
+  Optimizer (O1–O9). My picks:
+  - Reading a variable: a read is matched by the declaration it points to, not
+    by name, so shadowing is handled for free.
+  - Self-updates: a variable's use inside its own update (x := x + 1) doesn't
+    count as a read.
+  - Calls and 📥: any variable whose value calls a function or 📥 is kept whole.
+  - Unused functions: found by reachability from main.
+  - Inlining: only straight-line bodies. These are left alone:
+    - an exit inside an 🤔 or 🔁
+    - member functions
+    - functions with array parameters
+    - recursive functions
+    - calls in a 🔁 condition
+    - calls sharing a statement with another call or 📥
+  - Renaming: inlined names become add.a, add.s, with add.0 for the result. An
+    identifier can't contain ., so these can never clash with the caller's
+    names.
+  - No re-check: the checker doesn't run again after optimizing. A re-check by
+    name would get a global wrong where the caller shadows it.
+
+  Real program (P). Kaguya only has ==, ≠ and + - *, so every idea had to avoid
+  <, / and %. My pick is tic-tac-toe:
+  - a Board struct with a cells array
+  - a member 🔓 place that refuses a taken cell
+  - a function wins that checks the eight lines
+  - moves read with 📥
+
+  The other three ideas are a vending machine, a polynomial evaluator and a
+  memory-pairs game.
+
+  Plan: who does what
+  - You: make the picks, write the "what I understood" part of ai_usage_3.txt (I
+    can draft the rest), update the PR description to name the feature, and
+    upload the slides by 10 Nov 12:00.
+  - Me, one commit per step:
+    a. The smallest version of the program that runs.
+    b. Lexer, grammar and parser for arrays.
+    c. Checker rules with array_* tests.
+    d. Codegen, plus the IR excerpt.
+    e. Grow the program and record the sessions.
+    f. The optimizer, with tests/opt/ and the full suite run with and without
+       --optimize.
+    g. README and the Makefile.
+
+  I'm waiting for your picks.
+
+✻ Brewed for 4m 11s · done 7:03 PM
+
+※ recap: We're planning Stage 3, and the full option menu with my picks (Arrays as the feature) is now in design.md, with no code or commits yet. Next, you choose the feature, array, optimizer and program options, then I start building. (disable recaps in /config)
+
+❯ well, i take all your picks with thee changes.
+  arrays: the run time out of range error goes through dprintf
+  to fd 2 declared like printf and then exit 1, not through the stderr global,
+  because that symbol differs between linux and mac and i run the binary on my
+  laptop at the defence. a constant index means a literal or a negated literal
+  only, no folding of other expressions. add one end to end test where the
+  program prints something and then hits a run time out of range, and make the
+  test script check its non zero exit code and that stdout matches up to the
+  crash. optimizer: the unused variables pass never removes an array, because
+  dropping an indexed write can drop a run time bounds error and change what
+  the program does. unused functions by reachability from the top level is
+  fine, a member function called anywhere counts as reached, and the readme
+  says this gives the same result as repeating the removal. the inliner sets
+  decl and type on every node it creates since the checker doesnt run again.
+  program: tic tac toe is good, but a stranger typing 10 has to be asked again,
+  not killed by the bounds check, so add < and > as plain comparisons under
+  the same one comparison rule, documented as support for the program and not
+  as the feature.
+
+  Searched for 1 pattern (ctrl+o to expand)
+
+❯  wins stays a plain function taking the cells array so the program shows an
+  array passed to a function. put these into design.md, then go with this split
+  since your plan left my coding out again. i write by hand: the array index
+  rules in the checker, meaning a constant out of range, the index type and 🔓
+  at every step for a write, the index read and write codegen with the run time
+  bounds check and its error block, passing an array to a function, the
+  inlining pass, the program in programs, and the sentences under both readme
+  ir excerpts. you do the rest: lexer grammar parser and ast for arrays and for
+  < >, array declaration and fill, arrays as struct fields and the print of an
+  array, the --optimize flag with the two passes that repeat until nothing
+  changes, the test script, all the tests, and the readme apart from my parts.
+
+❯ for my part leave visit stubs that raise NotImplementedError so everything
+  else still runs, and write my tests up front with hand written expected
+  files, dont fake them green. leave programs empty and the readme sections for
+  the program and both ir excerpts as headings only. one single commit at the
+  end, not one per step, then push and open a draft pr from stage3 into main
+  whose description names the feature, no reviewer yet. dont read write or
+  draft ai_usage_3.txt, claude.md forbids it and i write all of it. end by
+  telling me which functions are mine with file and line, what each must do,
+  the contract it relies on, and which tests go green when each one is done
+
+  Ran 1 shell command (ctrl+o to expand)
+
+⏺ Building now. Lexer first: [ ] < >.
+
+⏺ Bash(python3 - <<'EOF'
+      import re…)
+  ⎿   Makefile  |   2 +-
+      design.md | 224 +++++++++++++++++++++++++++++++++++++++++++++++++++++
+     +++++++++
+     … +2 lines (ctrl+o to expand)
+  ⎿  Updated Makefile (+1 -1)
+      1 -IMAGE := lcd-stage2
+      1 +IMAGE := lcd-stage3
+      2  DOCKER := docker run --rm $(if $(shell test -t 0 && echo y),-it)
+          -v "$(CURDIR)":/work -w /work $(IMAGE)
+      3
+      4  .PHONY: image shell tokens ast run build phi tests check clean
+  ⎿  Updated lexer.py (+8 -0)
+      42      "rbrace": ("block", "end"),
+      43      "langle": ("initialiser", "start"),
+      44      "rangle": ("initialiser", "end"),
+      45 +    "lbracket": ("index", "start"),
+      46 +    "rbracket": ("index", "end"),
+      47      "lparen": ("group", "start"),
+      48      "rparen": ("group", "end"),
+      49      "comma": ("separator", None),
+     ...
+      55      "star": ("operator", "arithmetic"),
+      56      "eq": ("operator", "comparison"),
+      57      "ne": ("operator", "comparison"),
+      58 +    "lt": ("operator", "comparison"),
+      59 +    "gt": ("operator", "comparison"),
+      60      "not": ("operator", "logical"),
+      61      "endline": ("endline", None),
+      62  }
+     ...
+      65      ord("}"): "rbrace",
+      66      ord("("): "lparen",
+      67      ord(")"): "rparen",
+      68 +    ord("["): "lbracket",
+      69 +    ord("]"): "rbracket",
+      70 +    ord("<"): "lt",
+      71 +    ord(">"): "gt",
+      72      ord("+"): "plus",
+      73      ord("-"): "minus",
+      74      ord("*"): "star",
+
+⏺ Lexer done. Now the parser, AST and the array/comparison parts of the checker
+  and codegen, with stubs for your parts.
+
+⏺ Bash(cat > /private/tmp/claude-502/-Users-vladyslav-prudius-Documents-kse-lang
+      -compilers-kse-langs-compilers-course-project/84c38ac0-4939-4fb9-a359-7a18
+      9a8b3dc7/scra…)
+  ⎿  ok
+  ⎿  Updated compiler.py (+167 -27)
+      16
+      17  TYPES = {"kw_i32": "i32", "kw_i64": "i64", "kw_bool": "bool"}
+      18  BOOLS = {"kw_true": True, "kw_false": False}
+      19 -CMP_OPS = {"eq": "==", "ne": "!="}
+      19 +CMP_OPS = {"eq": "==", "ne": "!=", "lt": "<", "gt": ">"}
+      20 +ORDER_OPS = {"<", ">"}
+      21  ADD_OPS = {"plus": "+", "minus": "-"}
+      22  MUL_OPS = {"star": "*"}
+      23  ARITH = {"+": "add", "-": "sub", "*": "mul"}
+     ...
+      35      return getattr(expr, "start", (expr.line, expr.col))
+      36
+      37
+      38 +def walk(node):
+      39 +    yield node
+      40 +    for child in node.children():
+      41 +        yield from walk(child)
+      42 +
+      43 +
+      44 +def reads(node, target=None):
+      45 +    if isinstance(node, VarNode) and node.decl is not target:
+      46 +        yield node.decl
+      47 +    if isinstance(node, AssignNode):
+      48 +        target = node.decl
+      49 +    for child in node.children():
+      50 +        yield from reads(child, target)
+      51 +
+      52 +
+      53 +def has_effect(node):
+      54 +    return any(isinstance(n, (CallNode, ReadNode)) for n in wal
+         +k(node))
+      55 +
+      56 +
+      57 +def aggregate(type_name):
+      58 +    return "arrays" if isinstance(type_name, ArrayType) else "o
+         +bjects"
+      59 +
+      60 +
+      61  def literal_value(expr):
+      62      """The constant an expression is, after negation folding, o
+          r None."""
+      63      if isinstance(expr, ConstNode):
+     ...
+      368          return visitor.visit_print(self)
+      369
+     … 272 more lines (ctrl+o to expand)
+
+  Searched for 1 pattern (ctrl+o to expand)
+
+⏺ Update(compiler.py)
+  ⎿  Added 2 lines, removed 2 lines
+      1274              if not is_scalar(have):
+      1275                  noun = "an array" if isinstance(have, ArrayTy
+            pe) else "an object"
+      1276                  raise CompileError(node.line, node.col, f"can
+            not apply '{node.op}' to {noun}")
+      1277 -        if node.op in ADD_OPS.values() or node.op in MUL_OPS.
+           -values() or node.op in ORDER_OPS:
+      1277 +        if node.op in ARITH or node.op in ORDER_OPS:
+      1278              if "bool" in (lt, rt):
+      1279                  raise CompileError(node.line, node.col, f"can
+            not apply '{node.op}' to bool")
+      1280 -            node.type = wider(lt, rt)
+      1280 +            node.type = "bool" if node.op in ORDER_OPS else w
+           +ider(lt, rt)
+      1281          else:
+      1282              if (lt == "bool") != (rt == "bool"):
+      1283                  raise CompileError(node.line, node.col, f"can
+            not compare {lt} with {rt}")
+
+⏺ Now codegen, the optimizer and the flag.
+
+⏺ Bash(cat > /private/tmp/claude-502/-Users-vladyslav-prudius-Documents-kse-lang
+      -compilers-kse-langs-compilers-course-project/84c38ac0-4939-4fb9-a359-7a18
+      9a8b3dc7/scra…)
+  ⎿  ok
+     1173:        node.is_global = self.at_top()
+     1220:        node.is_global = self.at_top()
+  ⎿  Updated compiler.py (+162 -33)
+      1318          return node.type
+      1319
+      1320
+      1321 +class Optimizer:
+      1322 +    def run(self, program):
+      1323 +        while any([
+      1324 +            self.drop_unused_functions(program),
+      1325 +            self.drop_unused_variables(program),
+      1326 +            self.inline(program),
+      1327 +        ]):
+      1328 +            pass
+      1329 +
+      1330 +    def drop_unused_functions(self, program):
+      1331 +        roots = [s for s in program.statements if not isinsta
+           +nce(s, (FuncNode, StructNode))]
+      1332 +        pending = [n.func for root in roots + [program.exit]
+           +for n in walk(root) if isinstance(n, CallNode)]
+      1333 +        pending += [n.func for n in walk(program) if isinstan
+           +ce(n, CallNode) and n.func.owner]
+      1334 +        reached = set()
+      1335 +        while pending:
+      1336 +            func = pending.pop()
+      1337 +            if func not in reached:
+      1338 +                reached.add(func)
+      1339 +                pending += [n.func for n in walk(func.body) i
+           +f isinstance(n, CallNode)]
+      1340 +        before = len(list(walk(program)))
+      1341 +        program.statements = [
+      1342 +            s for s in program.statements if not isinstance(s
+           +, FuncNode) or s in reached
+      1343 +        ]
+      1344 +        for struct in program.statements:
+      1345 +            if isinstance(struct, StructNode):
+      1346 +                struct.members = [m for m in struct.members i
+           +f m in reached]
+      1347 +                struct.symbol.members = {m.name: m for m in s
+           +truct.members}
+      1348 +        return len(list(walk(program))) != before
+      1349 +
+      1350 +    def drop_unused_variables(self, program):
+      1351 +        read = set(reads(program))
+      1352 +        assigns = [n for n in walk(program) if isinstance(n,
+           +AssignNode)]
+      1353 +        dead = {
+      1354 +            n for n in walk(program)
+      1355 +            if isinstance(n, DeclNode) and is_scalar(n.type_n
+           +ame) and n not in read
+      1356 +            and not has_effect(n.init)
+      1357 +            and not any(has_effect(a.value) for a in assigns
+           +if a.decl is n)
+     … 257 more lines (ctrl+o to expand)
+
+⏺ Bash(python3 - <<'EOF'
+      p='compiler.py'; s=open(p).read()…)
+  ⎿  977:    def at_top(self):
+     1173:        node.is_global = self.at_top()
+     1220:        node.is_global = self.at_top()
+  ⎿  Updated compiler.py (+2 -2)
+      1337              if func not in reached:
+      1338                  reached.add(func)
+      1339                  pending += [n.func for n in walk(func.body) i
+            f isinstance(n, CallNode)]
+      1340 -        before = len(list(walk(program)))
+      1340 +        before = sum(isinstance(n, FuncNode) for n in walk(pr
+           +ogram))
+      1341          program.statements = [
+      1342              s for s in program.statements if not isinstance(s
+            , FuncNode) or s in reached
+      1343          ]
+     ...
+      1345              if isinstance(struct, StructNode):
+      1346                  struct.members = [m for m in struct.members i
+            f m in reached]
+      1347                  struct.symbol.members = {m.name: m for m in s
+            truct.members}
+      1348 -        return len(list(walk(program))) != before
+      1348 +        return sum(isinstance(n, FuncNode) for n in walk(prog
+           +ram)) != before
+      1349
+      1350      def drop_unused_variables(self, program):
+      1351          read = set(reads(program))
+
+⏺ Bash(sed -n 975,980p compiler.py && python3 - <<'EOF'
+      p='compiler.py'; s=open(p).read()…)
+  ⎿              )
+
+         def at_top(self):
+     … +8 lines (ctrl+o to expand)
+  ⎿  Updated compiler.py (+0 -5)
+      974                  node.line, node.col, f"variable '{node.name}'
+           is already declared in this block"
+      975              )
+      976
+      977 -    def at_top(self):
+      978 -        return self.function is None and len(self.scopes) == 1
+      979 -
+      977      def resolve_type(self, name, at):
+      978          if isinstance(name, ArrayType) or name in IR_TYPES:
+      979              return name
+     ...
+      1167              raise CompileError(*node.type_at, f"'{node.struct
+            _name}' is not a structure")
+      1168          self.check_init(node.init, struct)
+      1169          node.type_name = struct
+      1173 -        node.is_global = self.at_top()
+      1170          self.scopes[-1][node.name] = node
+      1171
+      1172      def visit_call(self, node):
+     ...
+      1213          else:
+      1214              node.init.accept(self)
+      1215              self.check_assignable(node.init, node.type_name,
+            node, f"initialise '{node.name}'")
+      1220 -        node.is_global = self.at_top()
+      1216          self.scopes[-1][node.name] = node
+      1217
+      1218      def visit_assign(self, node):
+
+❯ make sure to commit your work as you go but do not push yet
+
+⏺ I'm holding off on pushing for now, so there's no draft PR yet. All 144 Stage
+  2 tests pass, so I'm committing this step.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+⏺ Committed as fe734ee, not pushed. Next I'm writing the tests: my array, </>
+  and optimizer tests, plus your stub-backed tests with hand-written expected
+  files.
+
+⏺ Bash(mkdir -p tests/opt && cd tests &&
+      w(){ cat > "$1"; }…)
+  ⎿  136
+     191
+  ⎿  Created tests/err/array_arith.txt (+3 -0)
+      1 +3⃣[2] a ⟨0⟩
+      2 +3⃣ x ⟨1 + a⟩
+      3 +🚪 x
+  ⎿  Created tests/err/array_compare.txt (+4 -0)
+      1 +3⃣[2] a ⟨0⟩
+      2 +3⃣[2] b ⟨1⟩
+      3 +❓ same ⟨a == b⟩
+      4 +🚪 same
+  ⎿  Created tests/err/array_count_extra.txt (+2 -0)
+      1 +3⃣[2] a ⟨1, 2, 3⟩
+      2 +🚪 0
+  ⎿  Created tests/err/array_count_short.txt (+2 -0)
+      1 +3⃣[3] a ⟨1, 2⟩
+      2 +🚪 0
+  ⎿  Created tests/err/array_elem_nested.txt (+2 -0)
+      1 +3⃣[2] a ⟨⟨1⟩, 2⟩
+      2 +🚪 0
+  ⎿  … 15 more files changed
+  Ran 1 shell command (ctrl+o to expand)
+
+⏺ All the columns check out by hand, counting 3⃣ as two characters the way the
+  lexer does. Writing the expected files.
+
+⏺ Bash(cd /Users/vladyslav.prudius/Documents/kse-lang-compilers/kse-langs-compil
+      ers-course-project && docker run --rm -v "$PWD":/work -w /work lcd-stage3
+      bash -c '
+      for…)
+  ⎿  Program
+       Decl a i32[3] const
+         Init
+     … +63 lines (ctrl+o to expand)
+  ⎿  Created tests/err/array_arith.expected (+1 -0)
+      1 +compilation error: line 2:9: cannot apply '+' to an array
+  ⎿  Created tests/err/array_compare.expected (+1 -0)
+      1 +compilation error: line 3:11: cannot apply '==' to an array
+  ⎿  Created tests/err/array_count_extra.expected (+1 -0)
+      1 +compilation error: line 1:16: 'a' has 2 elements, got 3 values
+  ⎿  Created tests/err/array_count_short.expected (+1 -0)
+      1 +compilation error: line 1:9: 'a' has 3 elements, got 2 values
+  ⎿  Created tests/err/array_elem_nested.expected (+1 -0)
+      1 +compilation error: line 1:10: an element of 'a' is i32, not a st
+        +ructure
+  ⎿  … 16 more files changed
+
+⏺ Now your tests, with expected files written by hand. They'll stay red until
+  your stubs are filled in.
+
+⏺ Bash(cd /Users/vladyslav.prudius/Documents/kse-lang-compilers/kse-langs-compil
+      ers-course-project/tests && w(){ cat > "$1"; }
+      w ok/array_index.txt <<'EOF'…)
+  ⎿  compilation error: line 2:5: index 3 is out of range for 'a' of size 3
+     compilation error: line 2:3: index -1 is out of range for 'a' of size
+     3
+     … +14 lines (ctrl+o to expand)
+  ⎿  Created tests/err/array_arg_const.expected (+1 -0)
+      1 +compilation error: line 7:9: cannot pass to 🔓 'c' through 'a':
+        +it is not 🔓
+  ⎿  Created tests/err/array_arg_const.txt (+7 -0)
+      1 +🧩 clear(3⃣[3] 🔓 c) → 3⃣
+      2 +{
+      3 +    c[0] := 0
+      4 +    🚪 0
+      5 +}
+      6 +3⃣[3] a ⟨1⟩
+      7 +🚪 clear(a)
+  ⎿  Created tests/err/array_arg_scalar.expected (+1 -0)
+      1 +compilation error: line 5:9: argument 'c' of 'first' must be i32
+        +[9], got i32
+  ⎿  Created tests/err/array_arg_scalar.txt (+5 -0)
+      1 +🧩 first(3⃣[9] c) → 3⃣
+      2 +{
+      3 +    🚪 c[0]
+      4 +}
+      5 +🚪 first(5)
+  ⎿  Created tests/err/array_arg_size.expected (+1 -0)
+      1 +compilation error: line 6:9: argument 'c' of 'first' must be i32
+        +[9], got i32[3]
+  ⎿  … 34 more files changed
+
+⏺ The tool only found where each token sits. The messages are the ones I
+  specified by hand, and every column matches my own count. Now the optimizer
+  tests.
+
+⏺ Bash(cd /Users/vladyslav.prudius/Documents/kse-lang-compilers/kse-langs-compil
+      ers-course-project/tests/opt && w(){ cat > "$1"; }
+      w unused_var_cascade.txt <<'EOF'…)
+  ⎿  inline_basic.ast
+     inline_basic.expected
+     inline_basic.txt
+     … +13 lines (ctrl+o to expand)
+  ⎿  Created tests/opt/inline_basic.ast (+27 -0)
+       1 +Program
+       2 +  Decl s i32 const
+       3 +    Const 10
+       4 +  Decl a i32 const
+       5 +    Const 2
+       6 +  Decl add.a i32 const
+       7 +    Var s
+       8 +  Decl add.b i32 const
+       9 +    Var a
+      10 +  Decl add.s i32 const
+      11 +    BinOp +
+      12 +      Var add.a
+      13 +      Var add.b
+      14 +  Decl add.0 i32 const
+      15 +    Var add.s
+      16 +  Decl r i32 const
+      17 +    BinOp *
+      18 +      Var add.0
+      19 +      Const 2
+      20 +  Print
+      21 +    Var r
+      22 +    String " "
+      23 +    Var s
+      24 +    String " "
+      25 +    Var a
+      26 +  Exit
+      27 +    Var r
+  ⎿  Created tests/opt/inline_basic.expected (+2 -0)
+      1 +24 10 2
+      2 +Program exit with result 24
+  ⎿  Created tests/opt/inline_basic.txt (+10 -0)
+       1 +🧩 add(3⃣ a, 3⃣ b) → 3⃣
+       2 +{
+       3 +    3⃣ s ⟨a + b⟩
+       4 +    🚪 s
+       5 +}
+       6 +3⃣ s ⟨10⟩
+       7 +3⃣ a ⟨2⟩
+       8 +3⃣ r ⟨add(s, a) * 2⟩
+       9 +📢 r, " ", s, " ", a
+      10 +🚪 r
+  ⎿  Created tests/opt/inline_left_alone.expected (+2 -0)
+      1 +-1 true 4 1 6
+      2 +Program exit with result 1
+  ⎿  Created tests/opt/inline_left_alone.txt (+52 -0)
+       1 +🧩 sign(3⃣ n) → 3⃣
+       2 +{
+       3 +    🤔 n < 0
+       4 +    {
+       5 +        🚪 -1
+       6 +    }
+       7 +    🚪 1
+       8 +}
+       9 +🧩 even(3⃣ n) → ❓
+      10 +{
+      11 +    🤔 n < 1
+      12 +    {
+      13 +        🚪 n == 0
+      14 +    }
+      15 +    🚪 odd(n - 1)
+      16 +}
+      17 +🧩 odd(3⃣ n) → ❓
+      18 +{
+      19 +    🚪 even(n - 1)
+      20 +}
+      21 +🧩 dec(3⃣ n) → 3⃣
+      22 +{
+      23 +    🚪 n - 1
+      24 +}
+      25 +🧩 twice(3⃣ n) → 3⃣
+      26 +{
+      27 +    🚪 n * 2
+      28 +}
+      29 +🧩 three() → 3⃣
+      30 +{
+      31 +    🚪 3
+      32 +}
+      33 +🧱 Box
+      34 +{
+      35 +    3⃣ v
+      36 +    🧩 get() → 3⃣
+      37 +    {
+      38 +        🚪 v
+      39 +    }
+      40 +}
+     … 12 more lines (ctrl+o to expand)
+  ⎿  … 11 more files changed
+
+⏺ I'm checking every optimizer program's output without the flag, and I'll also
+  generate the trees for my two passes using a no-op inliner in a scratch
+  script.
+
+⏺ Bash(cd /Users/vladyslav.prudius/Documents/kse-lang-compilers/kse-langs-compil
+      ers-course-project &&
+      S=/private/tmp/claude-502/-Users-vladyslav-prudius-Documents-kse-…)
+  ⎿  plain ok tests/opt/inline_basic
+       noinline-opt ok
+     plain ok tests/opt/inline_left_alone
+     … +117 lines (ctrl+o to expand)
+  ⎿  Created tests/opt/inline_left_alone.ast (+103 -0)
+        1 +Program
+        2 +  Func sign -> i32
+        3 +    Param n i32
+        4 +    Block
+        5 +      If
+        6 +        BinOp <
+        7 +          Var n
+        8 +          Const 0
+        9 +        Block
+       10 +          Exit
+       11 +            Neg
+       12 +              Const 1
+       13 +      Exit
+       14 +        Const 1
+       15 +  Func even -> bool
+       16 +    Param n i32
+       17 +    Block
+       18 +      If
+       19 +        BinOp <
+       20 +          Var n
+       21 +          Const 1
+       22 +        Block
+       23 +          Exit
+       24 +            BinOp ==
+       25 +              Var n
+       26 +              Const 0
+       27 +      Exit
+       28 +        Call odd args=1
+       29 +          BinOp -
+       30 +            Var n
+       31 +            Const 1
+       32 +  Func odd -> bool
+       33 +    Param n i32
+       34 +    Block
+       35 +      Exit
+       36 +        Call even args=1
+       37 +          BinOp -
+       38 +            Var n
+       39 +            Const 1
+       40 +  Func dec -> i32
+     … 63 more lines (ctrl+o to expand)
+  ⎿  Created tests/opt/unused_fn_cascade.ast (+17 -0)
+       1 +Program
+       2 +  Func used -> i32
+       3 +    Param n i32
+       4 +    Block
+       5 +      Exit
+       6 +        BinOp *
+       7 +          Var n
+       8 +          Const 3
+       9 +  Print
+      10 +    Call used args=1
+      11 +      Const 1
+      12 +    String " "
+      13 +    Call used args=1
+      14 +      Const 2
+      15 +  Exit
+      16 +    Call used args=1
+      17 +      Const 3
+  ⎿  Created tests/opt/unused_fn_member.ast (+29 -0)
+       1 +Program
+       2 +  Func step -> i32
+       3 +    Block
+       4 +      Exit
+       5 +        Const 1
+       6 +  Struct Counter
+       7 +    Field n i32 mut
+       8 +    Member bump -> i32 mutating
+       9 +      Block
+      10 +        Assign n
+      11 +          BinOp +
+      12 +            Var n
+      13 +            BinOp *
+      14 +              Call step args=0
+      15 +              Call step args=0
+      16 +        Exit
+      17 +          Var n
+      18 +  Object c Counter mut
+      19 +    Init
+      20 +      Const 0
+      21 +  Print
+      22 +    MemberCall bump args=0
+      23 +      Var c
+      24 +  Print
+      25 +    MemberCall bump args=0
+      26 +      Var c
+      27 +  Exit
+      28 +    Dot n
+      29 +      Var c
+  ⎿  Created tests/opt/unused_var_cascade.ast (+19 -0)
+       1 +Program
+       2 +  Func side -> i32
+       3 +    Param n i32
+       4 +    Block
+       5 +      Print
+       6 +        String "side "
+       7 +        Var n
+       8 +      Exit
+       9 +        Var n
+      10 +  Decl kept i32 const
+      11 +    Call side args=1
+      12 +      Const 1
+      13 +  Decl also i32 mut
+      14 +    Const 0
+      15 +  Assign also
+      16 +    Call side args=1
+      17 +      Const 2
+      18 +  Exit
+      19 +    Const 5
+  ⎿  Created tests/opt/unused_var_shadow.ast (+41 -0)
+       1 +Program
+       2 +  Decl g i32 const
+       3 +    Const 7
+       4 +  Func getg -> i32
+       5 +    Param d i32
+       6 +    Block
+       7 +      Exit
+       8 +        BinOp +
+       9 +          Var g
+      10 +          Var d
+      11 +  Decl x i32 mut
+      12 +    Const 1
+      13 +  If
+      14 +    BinOp ==
+      15 +      Var x
+      16 +      Const 1
+      17 +    Block
+      18 +  Decl arr i32[3] mut
+      19 +    Init
+      20 +      Const 0
+      21 +  Decl i i32 mut
+      22 +    Const 0
+      23 +  While
+      24 +    BinOp !=
+      25 +      Var i
+      26 +      Const 3
+      27 +    Block
+      28 +      Assign i
+      29 +        BinOp +
+      30 +          Var i
+      31 +          Const 1
+      32 +  Print
+      33 +    Var x
+      34 +    String " "
+      35 +    Call getg args=1
+      36 +      Const 1
+      37 +    String " "
+      38 +    Call getg args=1
+      39 +      Const 2
+      40 +  Exit
+     … 1 more lines (ctrl+o to expand)
+
+⏺ I checked all four dead-code trees by hand and removed the unused variables
+  and functions in each. Next I'll run the test script.
+
+⏺ Write(run_tests.sh)
+  ⎿  Added 63 lines, removed 40 lines
+      1  #!/usr/bin/env bash
+      2  # AI-generated.
+      3  set -u
+      4 +shopt -s nullglob
+      5
+      6  cd "$(dirname "$0")"
+      7  TMP=$(mktemp -d)
+     ...
+      10  pass=0
+      11  fail=0
+      12
+      12 -for src in tests/ok/*.txt tests/err/*.txt; do
+      13 -    base=${src%.txt}
+      14 -    name=${base#tests/}
+      15 -    ll="$TMP/${name//\//_}.ll"
+      16 -
+      17 -    if [[ $name == ok/* ]]; then
+      18 -        if ! python3 compiler.py "$src" "$ll" 2>"$TMP/err"; the
+         -n
+      19 -            echo "FAIL $name: compiler failed"
+      20 -            sed 's/^/      /' "$TMP/err"
+      21 -            fail=$((fail + 1)); continue
+      22 -        fi
+      23 -        input=/dev/null
+      24 -        [[ -e $base.in ]] && input=$base.in
+      25 -        if ! actual=$(lli "$ll" <"$input" 2>"$TMP/err"); then
+      26 -            echo "FAIL $name: lli failed"
+      27 -            sed 's/^/      /' "$TMP/err"
+      28 -            fail=$((fail + 1)); continue
+      29 -        fi
+      30 -        if [[ -e $base.ast ]] && ! python3 compiler.py --ast "$
+         -src" | diff -q - "$base.ast" >/dev/null; then
+      31 -            echo "FAIL $name: --ast does not match $base.ast"
+      32 -            python3 compiler.py --ast "$src" | diff - "$base.as
+         -t" | sed 's/^/      /'
+      33 -            fail=$((fail + 1)); continue
+      34 -        fi
+      35 -    else
+      36 -        if python3 compiler.py "$src" "$ll" 2>"$TMP/err"; then
+      37 -            echo "FAIL $name: expected a compilation error"
+      38 -            fail=$((fail + 1)); continue
+      39 -        fi
+      40 -        if [[ -e $ll ]]; then
+      41 -            echo "FAIL $name: output file written despite the e
+         -rror"
+      42 -            fail=$((fail + 1)); continue
+      43 -        fi
+      44 -        actual=$(cat "$TMP/err")
+      45 -    fi
+      46 -
+      47 -    if [[ $actual == "$(cat "$base.expected")" ]]; then
+      48 -        echo "ok   $name"
+      13 +report() {
+      14 +    if [[ -z $2 ]]; then
+      15 +        echo "ok   $1"
+      16          pass=$((pass + 1))
+      17      else
+      51 -        echo "FAIL $name"
+      52 -        echo "      expected: $(cat "$base.expected")"
+      53 -        echo "      actual:   $actual"
+      18 +        echo "FAIL $1: $2"
+      19          fail=$((fail + 1))
+      20      fi
+      21 +}
+      22 +
+      23 +compare_ast() {
+      24 +    local actual
+      25 +    actual=$(python3 compiler.py "$@" 2>&1)
+      26 +    [[ $actual == "$(cat "$AST")" ]] || { echo "--ast does not
+         +match $AST"; diff <(echo "$actual") "$AST" | sed 's/^/      /'
+         +>&2; }
+      27 +}
+      28 +
+      29 +run_ok() {
+      30 +    local src=$1 input=$2 expected=$3 flag=$4 ll="$TMP/out.ll"
+         +code=0 want=0
+      31 +    rm -f "$ll"
+      32 +    if ! python3 compiler.py $flag "$src" "$ll" 2>"$TMP/err"; t
+         +hen
+      33 +        echo "compiler failed: $(tail -1 "$TMP/err")"
+      34 +        return
+      35 +    fi
+      36 +    lli "$ll" <"$input" >"$TMP/out" 2>"$TMP/err" || code=$?
+      37 +    [[ -e ${expected%.expected}.code ]] && want=$(cat "${expect
+         +ed%.expected}.code")
+      38 +    if [[ $code != "$want" ]]; then
+      39 +        echo "exit code $code, expected $want $(head -1 "$TMP/e
+         +rr")"
+      40 +    elif [[ $(cat "$TMP/out") != "$(cat "$expected")" ]]; then
+      41 +        echo "stdout differs: $(diff "$TMP/out" "$expected" | h
+         +ead -3 | tr '\n' ' ')"
+      42 +    fi
+      43 +}
+      44 +
+      45 +run_err() {
+      46 +    local src=$1 flag=$2 ll="$TMP/out.ll"
+      47 +    rm -f "$ll"
+      48 +    if python3 compiler.py $flag "$src" "$ll" 2>"$TMP/err"; the
+         +n
+      49 +        echo "expected a compilation error"
+      50 +    elif [[ -e $ll ]]; then
+      51 +        echo "output file written despite the error"
+      52 +    elif [[ $(cat "$TMP/err") != "$(cat "${src%.txt}.expected")
+         +" ]]; then
+      53 +        echo "got $(cat "$TMP/err")"
+      54 +    fi
+      55 +}
+      56 +
+      57 +for flag in "" --optimize; do
+      58 +    for src in tests/ok/*.txt tests/opt/*.txt; do
+      59 +        base=${src%.txt}
+      60 +        input=/dev/null
+      61 +        [[ -e $base.in ]] && input=$base.in
+      62 +        report "${base#tests/} $flag" "$(run_ok "$src" "$input"
+         + "$base.expected" "$flag")"
+      63 +    done
+      64 +    for src in tests/err/*.txt; do
+      65 +        report "${src%.txt} $flag" "$(run_err "$src" "$flag")"
+      66 +    done
+      67 +    for session in programs/*.in; do
+      68 +        base=${session%.in}
+      69 +        prog=programs/$(basename "${base%%.*}").txt
+      70 +        report "${base} $flag" "$(run_ok "$prog" "$session" "$b
+         +ase.expected" "$flag")"
+      71 +    done
+      72  done
+      73
+      74 +for AST in tests/ok/*.ast; do
+      75 +    report "$AST" "$(compare_ast --ast "${AST%.ast}.txt")"
+      76 +done
+      77 +for AST in tests/opt/*.ast; do
+      78 +    report "$AST" "$(compare_ast --optimize --ast "${AST%.ast}.
+         +txt")"
+      79 +done
+      80 +
+      81  echo
+      82  echo "$pass passed, $fail failed"
+      83  [[ $fail -eq 0 ]]
+
+⏺ Bash(sed -i '' 's|report "${src%.txt} $flag" "$(run_err|report "${src#tests/}
+      $flag" "$(run_err|' run_tests.sh && docker run --rm -v "$PWD":/work -w
+      /work lcd-stage3…)
+  ⎿      node.body.exit.accept(self)
+         node.body.exit.accept(self)
+         node.body.exit.accept(self)
+     … +76 lines (ctrl+o to expand)
+  ⎿  Updated run_tests.sh (+1 -1)
+      62          report "${base#tests/} $flag" "$(run_ok "$src" "$input"
+           "$base.expected" "$flag")"
+      63      done
+      64      for src in tests/err/*.txt; do
+      65 -        report "${src%.txt} $flag" "$(run_err "$src" "$flag")"
+      65 +        report "${src#tests/} $flag" "$(run_err "$src" "$flag")
+         +"
+      66      done
+      67      for session in programs/*.in; do
+      68          base=${session%.in}
+
+⏺ Bash(python3 - <<'EOF'
+      p='run_tests.sh'; s=open(p).read()…)
+  ⎿  FAIL ok/array_index : compiler failed: NotImplementedError: index writ
+     e rules
+     FAIL ok/array_member : compiler failed: NotImplementedError: index rea
+     … +125 lines (ctrl+o to expand)
+  ⎿  Updated run_tests.sh (+3 -2)
+      50      elif [[ -e $ll ]]; then
+      51          echo "output file written despite the error"
+      52      elif [[ $(cat "$TMP/err") != "$(cat "${src%.txt}.expected")
+          " ]]; then
+      53 -        echo "got $(cat "$TMP/err")"
+      53 +        echo "got $(tail -1 "$TMP/err")"
+      54      fi
+      55  }
+      56
+     ...
+      62          report "${base#tests/} $flag" "$(run_ok "$src" "$input"
+           "$base.expected" "$flag")"
+      63      done
+      64      for src in tests/err/*.txt; do
+      65 -        report "${src#tests/} $flag" "$(run_err "$src" "$flag")
+         -"
+      65 +        base=${src%.txt}
+      66 +        report "${base#tests/} $flag" "$(run_err "$src" "$flag"
+         +)"
+      67      done
+      68      for session in programs/*.in; do
+      69          base=${session%.in}
+
+⏺ Every failure traces back to a stub: without --optimize, only the 18 tests
+  tied to the index and array-passing stubs fail. I'm running both passes across
+  the full ok/ suite with the inliner disabled, as a scratch check, before I
+  trust them.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+⏺ My passes keep the output identical on all 67 programs that don't reach your
+  stubs. Committing the tests and the script.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+⏺ Now check.py, so it understands .code files, then the grammar.
+
+⏺ Bash(python3 - <<'EOF'
+      p='check.py'; s=open(p).read()…)
+  ⎿  9:statement  ::= decl | object | assign | field_set | call | print | i
+     f | while
+     11:decl       ::= type [ "🔓" ] ident "⟨" expr "⟩"
+     … +16 lines (ctrl+o to expand)
+  ⎿  Updated check.py (+3 -2)
+      30              input=stdin.read_text() if stdin.exists() else "",
+      31          )
+      32          out.unlink(missing_ok=True)
+      33 -        if ran.returncode != 0:
+      34 -            return False, "lli failed"
+      33 +        code = src.with_suffix(".code")
+      34 +        if ran.returncode != (int(code.read_text()) if code.exi
+         +sts() else 0):
+      35 +            return False, f"lli exited with {ran.returncode}"
+      36          actual = ran.stdout.rstrip("\n")
+      37
+      38      if actual != expected:
+
+⏺ Bash(python3 - <<'EOF'
+      p='grammar.ebnf'; s=open(p).read()…)
+  ⎿  19:object     ::= ident [ "🔓" ] ident init
+     21:init       ::= "⟨" init_value { "," init_value } "⟩"
+     23:init_value ::= init | expr
+     … +43 lines (ctrl+o to expand)
+  ⎿  Updated grammar.ebnf (+17 -7)
+      1 -(* Kaguya, stage 2. Quoted items are terminals: tokens the lexer
+        - emits, written
+      1 +(* Kaguya, stage 3. Quoted items are terminals: tokens the lexer
+        + emits, written
+      2     with the same text. ident, number and string are terminals to
+         o, spelled by
+      3     the lexical rules at the end. NL is the endline token. *)
+      4
+     ...
+       6
+       7  top        ::= statement | func | struct
+       8
+       9 -statement  ::= decl | object | assign | field_set | call | prin
+         -t | if | while
+       9 +statement  ::= decl | array | object | assign | field_set | ind
+         +ex_set | call | print | if | while
+      10
+      11  decl       ::= type [ "🔓" ] ident "⟨" expr "⟩"
+      12
+      13 +array      ::= type size [ "🔓" ] ident "⟨" expr { "," expr } "
+         +⟩"
+      14 +
+      15 +size       ::= "[" number "]"
+      16 +
+      17  type       ::= "3⃣" | "6⃣" | "❓"
+      18
+      19  object     ::= ident [ "🔓" ] ident init
+     ...
+      42
+      43  member     ::= "🧩" [ "🔓" ] ident params "→" type NL body
+      44
+      41 -params     ::= "(" [ type ident { "," type ident } ] ")"
+      45 +params     ::= "(" [ param { "," param } ] ")"
+      46 +
+      47 +param      ::= type ident | type size [ "🔓" ] ident
+      48
+      49  body       ::= "{" NL { statement } exit_stmt NL "}" NL
+      50
+      51  struct     ::= "🧱" ident NL "{" NL field { field } { member }
+          "}" NL
+      52
+      47 -field      ::= ( type | ident ) [ "🔓" ] ident NL
+      53 +field      ::= ( type [ size ] | ident ) [ "🔓" ] ident NL
+      54
+      49 -expr       ::= arith [ ( "==" | "≠" ) arith ]
+      55 +expr       ::= arith [ ( "==" | "≠" | "<" | ">" ) arith ]
+      56
+      57  arith      ::= term { ( "+" | "-" ) term }
+      58
+     … 20 more lines (ctrl+o to expand)
+
+⏺ Bash(python3 - <<'EOF'
+      p='grammar.ebnf'; s=open(p).read()…)
+  ⎿  (* Kaguya, stage 3. Quoted items are terminals: tokens the lexer emits
+     , written
+        with the same text. ident, number and string are terminals too, spe
+     … +75 lines (ctrl+o to expand)
+  ⎿  Updated grammar.ebnf (+18 -5)
+      10
+      11  decl       ::= type [ "🔓" ] ident "⟨" expr "⟩"
+      12
+      13 -array      ::= type size [ "🔓" ] ident "⟨" expr { "," expr } "
+         -⟩"
+      13 +array      ::= type size [ "🔓" ] ident init
+      14
+      15  size       ::= "[" number "]"
+      16
+     ...
+      109
+      110     '⟨' '⟩' delimit an initialiser and '{' '}' delimit a block,
+            and neither does
+      111     the other's job. An object's init nests: a structure-typed
+           field takes an
+      112 -   init of its own.
+      112 +   init of its own, and so does an array field.
+      113 +
+      114 +   An array is a scalar type followed by size, in a declaratio
+          +n, a field or a
+      115 +   parameter, never in a result. Its init is the same rule as
+          +an object's; one
+      116 +   nested level is grammatical, and the checker rejects an ele
+          +ment that is an
+      117 +   init. A '🔓' on a parameter is grammatical only after a siz
+          +e: scalar
+      118 +   parameters stay constant.
+      119 +
+      120 +   index sits only at the end of a chain, so a[i][j], a[i].x a
+          +nd f()[i] are
+      121 +   syntax errors: an element is a scalar with nothing to selec
+          +t. ':=' after a
+      122 +   chain ending in index is index_set.
+      123
+      124     A line starting with an ident needs a second token to dispa
+           tch. An ident or
+      125     '🔓' after it makes an object. Otherwise it is a chain: ':=
+           ' after a plain
+     ...
+      131     call is an argument of another call.
+      132
+      133     expr allows at most one comparison, and it binds weaker tha
+           n arithmetic: the
+      124 -   second arith is the only place "==" or "≠" can appear, so a
+          - second
+      125 -   comparison is left over after the expression and rejected t
+          -here.
+      134 +   second arith is the only place "==", "≠", "<" or ">" can ap
+          +pear, so a second
+      135 +   comparison is left over after the expression and rejected t
+          +here. "<" and
+      136 +   ">" are there for programs, not as the stage 3 feature.
+      137
+      138     '!' and unary '-' are in factor and recurse on factor, so t
+           hey bind tighter
+      139     than every binary operator: !a == b compares !a with b, -a
+           * b is (-a) * b,
+     ...
+      145     Types are not in the grammar: 3⃣ a ⟨ ✅ ⟩ parses. They are
+           checked in the
+      146     semantic pass, along with declaration before use, declarati
+           on once per
+      147     scope, 🔓 before :=, the argument count and types, the type
+            a function
+     … 7 more lines (ctrl+o to expand)
+
+⏺ Grammar done. Now I'm rewriting the Stage 3 section of design.md with the
+  decisions you made and the split of the work.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+⏺ Bash(S=/private/tmp/claude-502/-Users-vladyslav-prudius-Documents-kse-lang-com
+      pilers-kse-langs-compilers-course-project/84c38ac0-4939-4fb9-a359-7a189a8b
+      3dc7/scratchp…)
+  ⎿  Claude: lexer, grammar, parser and tree for arrays and for `<` `>`; ar
+     ray
+     declaration and fill; arrays as fields; printing an array; `--optimize
+     … +4 lines (ctrl+o to expand)
+  ⎿  Updated design.md (+147 -217)
+      339  - `printf` and `scanf` are bodiless variadic declarations, and
+            every format
+      340    string is a private global constant.
+      341
+      342 -# Stage 3 — decisions to pick
+      342 +# Stage 3 — arrays, the optimizer, a real program
+      343
+      344 -Every decision below is a menu. ✔ marks my pick; you choose. E
+          -ach rule comes
+      345 -before its syntax. Nothing here breaks a Stage 2 program: ever
+          -y new construct
+      346 -starts with a token that was an error before (`[`, `]`) or add
+          -s an optional
+      347 -mark in a place that used to reject it.
+      344 +Every Stage 2 program stays valid and prints the same: each ne
+          +w construct
+      345 +starts with a token that was an error before (`[`, `]`, `<`, `
+          +>`), or puts a
+      346 +`🔓` where one used to be rejected.
+      347
+      349 -Two facts about Kaguya shape every choice: it has no `<`, `>`,
+          - `/` or `%`, so
+      350 -a program can only compare with `==` and `≠` and compute with
+          -`+ - *`; and
+      351 -objects are never copied, so anything aggregate is passed by r
+          -eference or not
+      352 -at all.
+      348 +## Why arrays
+      349
+      354 -## F. Which feature (Task 1, 5 pt)
+      350 +Four menu rows fitted Kaguya. Their costs, compiler stage by s
+          +tage:
+      351
+      356 -| | Arrays ✔ | Coroutines | Inheritance | Overloading |
+      352 +| | Arrays (chosen) | Coroutines | Inheritance | Overloading |
+      353  |---|---|---|---|---|
+      358 -| lexer | `[` `]` as two `SINGLES` | 2 glyphs: coroutine, yiel
+          -d | 2 glyphs: extends, virtual | nothing |
+      359 -| parser | `[N]` after a type; `[e]` as a chain link; reuse `p
+          -arse_init` | coroutine header, yield stmt, resume call | `🧱 B
+          - ⬅ A`, mark on a member | nothing |
+      360 -| checker | array type (elem, size), constant-index range chec
+          -k, `🔓` array params, "not a value" rules | yield only inside
+          -a coroutine, yield type, resume type, done state | merged fiel
+          -d table, duplicate across base, override signature match, memb
+          -er lookup through base | functions keyed by name + params, ran
+          -ked resolution with `i32→i64`, ambiguity error |
+      361 -| codegen | `ArrayType` alloca/field, gep `[0, i]`, bounds che
+          -ck block calling `dprintf` + `exit`, array params as pointers
+          -| locals and resume index moved into a state struct, `switch`
+          -into the resume block, `slot_of` returns a gep instead of an a
+          -lloca | vptr at index 0, one vtable global per structure, load
+          --gep-load-call, bitcast `this` to base | mangled names `kg.f.i
+          -32.i64` |
+      362 -| IR excerpt | `icmp ult` → `br` to an `oob` block, then the `
+          -gep` | the state struct and the `switch i32 %state` | the vtab
+          -le constant and the indirect `call` | two definitions, two cal
+          -ls picking each |
+      363 -| visibility in a real program | high: a board, a stock list,
+          -a score table | high: a generator or a task scheduler | medium
+          -: shapes, needs a base member calling a virtual one, since obj
+          -ects are never parameters | low: reads as convenience |
+      364 -| cost | medium | high | high | low, and looks thin at the def
+          -ence |
+      365 -
+      366 -**Why arrays.** Every row of the handout's checklist is a test
+          - you can write
+      367 -and see fail; it extends rules Kaguya already has (const by de
+          -fault, `🔓` on
+      368 -every step of a chain, never copied) instead of adding a new m
+          -odel; and the
+      369 -run-time bounds error is a demo in itself. Codegen already doe
+          -s the hard part:
+      370 -allocas live in entry, chains already walk geps.
+      371 -
+     … 333 more lines (ctrl+o to expand)
+
+⏺ Now the README. First, the sections I'm touching and the test counts.
+
+  Listed 1 directory, ran 1 shell command (ctrl+o to expand)
+
+⏺ Bash(cat > /private/tmp/claude-502/-Users-vladyslav-prudius-Documents-kse-lang
+      -compilers-kse-langs-compilers-course-project/84c38ac0-4939-4fb9-a359-7a18
+      9a8b3dc7/scra…)
+  ⎿  13:## The glyphs
+     45:## Running
+     94:## The phases
+     … +19 lines (ctrl+o to expand)
+  ⎿  Updated README.md (+186 -14)
+       1 -# Kaguya — stage 2: functions, structures, read and print
+       1 +# Kaguya — stage 3: arrays, an optimizer, a real program
+       2
+       3  A compiler for a small language with emoji keywords. `lexer.py`
+           turns source
+       4  bytes into typed tokens with a hand-written state machine; `Par
+          ser` in
+       5  `compiler.py` reads those tokens by recursive descent and build
+          s a tree;
+       6  `SemanticChecker` walks the tree, decides the type of every exp
+          ression and
+       7 -rejects bad programs; `CodeGen` walks the checked tree and emit
+         -s LLVM IR through
+       7 +rejects bad programs; `Optimizer` shrinks the checked tree when
+         + asked to;
+       8 +`CodeGen` walks the checked tree and emits LLVM IR through
+       9  the `llvmlite.ir` builder. `grammar.ebnf` is the grammar the pa
+          rser implements,
+      10  one method per rule, and `design.md` records why the language l
+          ooks the way it
+      11  does.
+     ...
+      31  | `📢` | print | `F0 9F 93 A2` |
+      32  | `→` | result type | `E2 86 92` |
+      33
+      33 -ASCII `,` separates arguments, parameters and values, and `.` s
+         -elects a field. A
+      34 +ASCII `,` separates arguments, parameters and values, `.` selec
+         +ts a field,
+      35 +`[` `]` hold an array size or an index, and `<` `>` compare. A
+      36  string literal is `"…"` on one line, with no escapes.
+      37
+      38  No keyword is spelled with letters. An identifier is always an
+          identifier, so
+     ...
+      48  once and open a shell in it, from the repository root:
+      49
+      50  ```sh
+      49 -docker build -t lcd-stage2 .
+      50 -docker run --rm -it -v "$PWD:/work" lcd-stage2
+      51 +docker build -t lcd-stage3 .
+      52 +docker run --rm -it -v "$PWD:/work" lcd-stage3
+      53  ```
+      54
+      55  Inside that shell:
+     ...
+      57  ```sh
+      58  python3 compiler.py input.txt output.ll   # compile
+      59  python3 compiler.py --ast input.txt       # print the tree, wri
+          te nothing
+      60 +python3 compiler.py --optimize input.txt output.ll   # compile
+         +through the optimizer
+      61  lli output.ll                             # run
+      62  opt -passes=mem2reg -S output.ll          # the same IR, alloca
+          s promoted
+      63  ```
+     ...
+      340  📢 c                                 Circle { center: Point {
+           x: 3, y: 4 }, r: 5 }
+     … 222 more lines (ctrl+o to expand)
+
+  Ran 1 shell command (ctrl+o to expand)
+⏺ Bash(python3 - <<'EOF'
+      p='README.md'; s=open(p).read()…)
+  ⎿  292 passed, 110 failed
+     FAIL ok/array_index : compiler failed: NotImplementedError: index writ
+     e rules
+     … +26 lines (ctrl+o to expand)
+  ⎿  Updated README.md (+1 -0)
+       97  lex      bytes  -> one token vector per line        lexer.py
+       98  parse    tokens -> a tree of Node subclasses        Parser
+       99  check    tree   -> the same tree, typed             SemanticCh
+           ecker
+      100 +optimize tree   -> a smaller tree, --optimize only  Optimizer
+      101  walk     tree   -> LLVM IR                          CodeGen
+      102  ```
+      103
+
+⏺ The same 18 stub tests fail in both runners; nothing else does. Committing the
+  docs.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+⏺ I didn't push, and there's no PR yet, since a draft PR needs the branch on
+  GitHub. That follows your last message, which replaced the earlier "one commit
+  at the end, then push" plan. I made three local commits on stage3: fe734ee
+  (code), c050d42 (tests and script) and 051e5f4 (docs).
+
+  Status: the suite is 292 passed, 110 failed. Every failure is one of your
+  stubs raising NotImplementedError:
+  - Without --optimize: only the 18 tests behind your index and array-passing
+    stubs fail. All 144 Stage 2 tests pass, and so do my new ones.
+  - With --optimize: every program fails until inline exists, because the
+    optimizer runs it each round.
+  - My two passes: I checked them with the inliner swapped for a no-op in a
+    scratch script (not committed). All 67 programs that don't reach your stubs
+    printed exactly the same.
+
+  Your tests: the expected files are hand-written. The one exception is
+  opt/inline_left_alone.ast: it should equal the tree with nothing inlined, so I
+  generated it with inlining off and checked it by hand.
+
+  Not done:
+  - programs/ doesn't exist yet, because git can't track an empty folder.
+  - The README program section and both IR-excerpt sections are headings only.
+  - ai_usage_3.txt is untouched.
+
+  Your functions (compiler.py)
+
+  Checker
+
+  - visit_index at line 1067. This is the read a[e].
+    - Run node.target.accept(self). If the result isn't an ArrayType, raise at
+      the target's position: cannot index 'x' of type i32.
+    - Run node.index.accept(self). If its type isn't i32 or i64, raise at node:
+      an index must be i32 or i64, got bool.
+    - literal_value(node.index) already gives you exactly "a number, or - before
+      a number". If that value is outside 0…size-1, raise at node: index 3 is
+      out of range for 'a' of size 3.
+    - Set node.type to the element type and return it.
+    - Contract: node.line/node.col is the first token of the index, and
+      node.name is the array's name.
+    - Turns green: err/array_const_oob, array_index_bool, array_index_scalar.
+  - visit_index_assign at line 1070.
+    - Accept node.target.
+    - Call check_chain(node.target.target, "assign"). That gives the existing
+      "every step must be 🔓" errors and the mutating-member error.
+    - Accept the value, then check_assignable(value, node.target.type, node,
+      f"assign to an element of '{name}'").
+    - Turns green: err/array_write_const, array_write_const_object,
+      array_write_unmarked_member, array_write_type, array_write_const_param,
+      array_const_negative.
+  - check_array_arg at line 1064. The argument is already accepted when this
+    runs.
+    - If arg.type != param.type_name, raise at start(arg): argument 'c' of
+      'first' must be i32[9], got i32[3].
+    - If param.mutable, call check_chain(arg, f"pass to 🔓 '{param.name}'").
+    - Turns green, together with the two above: err/array_arg_size,
+      array_arg_scalar, array_arg_const.
+
+  Codegen
+
+  - array_param_type at line 1425: return
+    self.ir_type(param.type_name).as_pointer().
+  - bind_array_param at line 1428: set self.slots[param] = arg, with no alloca.
+    address() and my array print both rely on that slot being an [N x T]*.
+  - array_arg at line 1431: return self.address(arg).
+  - visit_index at line 1534 and visit_index_assign at line 1537.
+    - Get the index from node.index.accept(self) and sign-extend it to i64.
+    - Compare it unsigned against the size and branch to an oob block.
+    - The oob block calls dprintf(2, …) with runtime error: line L:C: index V
+      out of range for 'a' of size N, then exit(1), then unreachable.
+    - You need to declare dprintf and exit yourself; printf and scanf are
+      already declared in __init__.
+    - On the good path, take element_slot(self.address(node.target), idx)
+      (line 1434), then load from it, or for the assign, store into it the value
+      coerced with self.coerce(…).
+    - The checker's type/decl on every node is the contract.
+    - Turns green, once the checker parts are done: ok/array_index,
+      array_member, array_runtime_oob, array_runtime_negative,
+      array_runtime_not_folded. ok/array_param also needs the three passing
+      stubs.
+
+  Inliner
+
+  - Optimizer.inline at line 1361. Return True if anything changed. It runs each
+    round after unused functions and unused variables, so only reached
+    functions are left.
+    - Candidates are functions with exactly one call site, where the site is
+      identified by CallNode.func.
+    - Skip the shapes in the README table: an early exit, a member, an array
+      parameter, recursion, a 🔁 condition, a statement with another call or 📥.
+    - Hoist these declarations before the statement that holds the call:
+      - f.p ⟨arg⟩ for each parameter, constant
+      - f.x for each renamed local
+      - f.0, with the function's result type
+    - Replace the call with a Var f.0.
+    - Set decl on every new VarNode and AssignNode, and type on every new
+      expression, because the checker does not run again.
+    - Watch out with copy.deepcopy: it will duplicate the global declarations
+      the body reads unless you pre-seed its memo with them. Codegen already
+      pre-creates every global slot, so a hoisted read of a global is safe.
+    - Turns green: everything marked --optimize, plus the opt/inline_basic,
+      opt/inline_widen and opt/inline_left_alone trees. The four unused_*.ast
+      trees go green as soon as inline returns False for them.
+
+  Program: programs/NAME.txt, with sessions as programs/NAME.SESSION.in and
+  programs/NAME.SESSION.expected. run_tests.sh already runs them, with and
+  without --optimize.
+
+✻ Churned for 14m 43s · done 7:22 PM
+
+❯ /model
+  ⎿  Kept model as Opus 5.5
+
+※ recap: Stage 3 arrays, optimizer and tests are built and committed locally, unpushed, with your parts left as failing stubs. Next, you write the index checks, the array passing, the inliner and the program, then tell me when to push and open the draft PR. (disable recaps in /config)
+
+❯ my part is in as the last two commits. program sessions are already recorded
+  in programs. finish whats left of the stage, but dont push and dont open a pr
+  yet. check everything against the pdf and fix only what is actually missing
+  or wrong. at least 3 ok and 3 err array tests, at least 6 optimizer programs
+  with two per transformation each having its expected tree and output. readme:
+  the array rules with two example programs, the ten lines on the program with
+  the command for each session, and the exact llc and clang commands that turn
+  the program into a binary, run once to confirm they work as written. both ir
+  excerpts have to still match what the compiler prints now, but dont rewrite
+  my sentences, just tell me if one no longer fits. design.md has to agree with
+  the readme on the inlining shapes, including the one about a statement
+  reading a variable outside the call. grammar.ebnf needs the array syntax and
+  < >. no .ll files or binaries tracked, and the program session .expected
+  files have to match the llc and clang binary, not just lli. if something
+  fails in my code dont fix it, tell me the file the function and the input.
+  commit everything as one single commit with a real message and stop there.
+  dont touch ai_usage_3.txt, no refactors no extras, anything out of scope goes
+  in a list at the end
+
+  Ran 1 shell command (ctrl+o to expand)
+
+⏺ No .ll files or binaries are tracked. Running the full suite against your
+  code.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+⏺ All 406 pass, the program sessions included (through lli). Now reading what
+  you added to the README and the inliner, to check them against the PDF and
+  design.md.
+
+  Ran 2 shell commands (ctrl+o to expand)
+
+⏺ Your additions look complete, but design.md is missing the shape you added.
+  I'm comparing both IR excerpts with the compiler's current output next.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+⏺ My script paired the code fences wrongly: the ```sh blocks threw it off.
+  Parsing them properly.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+⏺ Both excerpts still match the current IR, though the array one is trimmed.
+  Next I'll read the program, build it with your llc/clang commands, and run
+  both sessions on the binary.
+
+  Read 1 file (ctrl+o to expand)
+
+⏺ Uses a structure with member functions, a plain function taking the array,
+  read, print, and arrays throughout. Building with the README commands, as
+  written, from the repository root:
+
+  Ran 1 shell command (ctrl+o to expand)
+
+⏺ The README commands and both session .expected files check out against the
+  native binary, lli, and the --optimize build, and I've removed the build
+  files. Next I'll probe the inliner and index code with more inputs, comparing
+  output with and without --optimize.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+⏺ Every probe prints the same output with and without the flag, and exitcall
+  gives 705032704 in both modes, which is Kaguya's existing i32 multiply
+  wrapping rather than an optimizer bug. I'm now checking that the probes were
+  really inlined.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+⏺ Every probe got inlined, and the globalshadow case still reads 7 because its
+  copy of getg uses the global g. I found no failures in your code, but
+  design.md is missing a table row and a mismatch: it says wins checks eight
+  literal lines, while your program walks a lines table. I'll write the two
+  example programs the PDF asks for next.
+
+  Searched for 1 pattern (ctrl+o to expand)
+
+⏺ Bash(python3 - <<'EOF'
+      p='design.md'; s=open(p).read()…)
+  ⎿  examples match files
+  ⎿  Updated README.md (+64 -0)
+      421  🧩 clear(3⃣[9] 🔓 c, 3⃣ v) → 3⃣
+      422  ```
+      423
+      424 +### Two example programs
+      425 +
+      426 +`tests/ok/array_index.txt` fills an array in one loop, sums it
+          + in another, and
+      427 +indexes it with an `i64`:
+      428 +
+      429 +```
+      430 +3⃣[5] 🔓 sq ⟨0⟩
+      431 +6⃣ two ⟨2⟩
+      432 +3⃣ 🔓 i ⟨0⟩
+      433 +🔁 i < 5
+      434 +{
+      435 +    sq[i] := i * i
+      436 +    i := i + 1
+      437 +}
+      438 +3⃣ 🔓 sum ⟨0⟩
+      439 +i := 0
+      440 +🔁 i ≠ 5
+      441 +{
+      442 +    sum := sum + sq[i]
+      443 +    i := i + 1
+      444 +}
+      445 +📢 sq, " ", sq[4], " ", sq[two]
+      446 +🚪 sum
+      447 +```
+      448 +
+      449 +```
+      450 +[0, 1, 4, 9, 16] 16 4
+      451 +Program exit with result 30
+      452 +```
+      453 +
+      454 +`tests/ok/array_member.txt` keeps the array in a structure, wr
+          +ites it from a
+      455 +mutating member by bare name and from outside through `b.cells
+          +[8]`:
+      456 +
+      457 +```
+      458 +🧱 Board
+      459 +{
+      460 +    3⃣[9] 🔓 cells
+     … 30 more lines (ctrl+o to expand)
+  ⎿  Updated design.md (+3 -1)
+      460  | recursive, directly or through others | never |
+      461  | a call in a `🔁` condition | hoisting runs it once instead o
+           f every turn |
+      462  | a statement with another call or `📥` | hoisting would reord
+           er side effects |
+      463 +| a statement that reads a variable outside the call's argumen
+          +ts | the body could assign it before it is read, as in `g + bu
+          +mp(5)` |
+      464
+      465  The body goes before the statement that holds the call. Each p
+           arameter becomes
+      466  a constant declaration initialised with its argument, every pa
+           rameter and local
+     ...
+      478
+      479  Tic-tac-toe. `Board` holds `3⃣[9] 🔓 cells` and a mutating mem
+           ber `place`
+      480  that refuses a taken cell; `wins(3⃣[9] c, 3⃣ p)` is a plain fu
+           nction taking the
+      480 -cells array, checking the eight lines with literal indices; mo
+          -ves are read
+      481 +cells array, walking the eight lines through a global `3⃣[24]
+          +lines` table
+      482 +with `c[lines[k + j]]`; moves are read
+      483  with `📥`, and a move outside 1–9 is asked again, using `<` an
+           d `>`.
+      484
+      485  ## Who writes what
+
+⏺ The two README examples match their test files and .expected outputs. Running
+  both runners one last time before the commit:
+
+  Ran 2 shell commands (ctrl+o to expand)
+
+⏺ I checked everything against the PDF and fixed two things that were missing or
+  wrong, both in the docs. It's one commit, 61b28f0, local only: not pushed, no
+  PR. The suite passes: 406 of 406 in run_tests.sh (every program with and
+  without --optimize, plus the trees and sessions), and 188 of 188 in check.py.
+
+  What I fixed
+  - README: the array rules had no complete example programs. I added two,
+    array_index and array_member, each with its output. Both match their test
+    files exactly.
+  - design.md:
+    - It was missing your inlining shape "a statement that reads a variable
+      outside the call's arguments". I added it, so its table now matches the
+      README's six rows.
+    - It also said wins checks the lines with literal indices. Your program
+      walks the lines table, so I corrected that sentence.
+
+  Already met, no change needed
+  - Array tests: 7 programs that run (plus 3 that are meant to crash) and 25
+    that must fail.
+  - Optimizer tests: 7 programs, at least two per transformation, each with its
+    expected tree and output.
+  - grammar.ebnf has the array syntax and < >, and agrees with the parser.
+  - No .ll files or binaries are tracked.
+  - The README program section says what the program does, where it uses arrays,
+    and the command for each session.
+
+  Build commands: I ran your README commands exactly as written, in the
+  container: compiler.py, then llc, then clang. Both session .expected files
+  match the native binary byte for byte. They also match lli, and a binary built
+  with --optimize. I deleted the build files afterwards. This was on Linux
+  only; I couldn't test the Mac you'll use at the defence.
+
+  IR excerpts: every line of both still matches what the compiler prints now.
+  Your sentences under them still fit, and I didn't edit them.
+
+  Your code: nothing failed. Beyond the suite, I tried nine extra programs on
+  the inliner and the index code:
+  - inlining into a function body, into a loop, into an 🤔 condition and into
+    the final 🚪
+  - a call standing alone as a statement
+  - a body with its own blocks that reuse names
+  - a function reading a global the caller hides behind a local of the same name
+  - i64 and bool arrays
+  - a member function taking a 🔓 array parameter
+
+  All printed the same with and without --optimize, and the inlined ones really
+  were inlined.
+
+  Out of scope, not done
+  - ai_usage_3.txt doesn't exist in the repo yet. The PDF grades the whole stage
+    0 without it.
+  - Running the README build commands leaves a tictactoe binary in the repo
+    root, and .gitignore doesn't cover it, so git add . would commit it.
+  - If the input runs out mid-game, 📥 keeps returning a stale number and the
+    game loops forever. Both recorded sessions finish, so tests don't hit this.
+  - 🚪 big(5000) with an i64 result prints 705032704: the multiply runs in 32
+    bits before the widening. That's existing Kaguya behaviour, not something
+    the optimizer changed.
+  - Not done yet: push, draft PR naming the feature, requesting vovaskochko as
+    reviewer, the slides, and the Moodle submission.
+
+✻ Cooked for 4m 6s · done 8:51 PM
+
+❯ prepare pr brief description and title
+
+⏺ Title
+
+  Stage 3: arrays, optimizer, tic-tac-toe
+
+  Description
+
+  ## Feature: arrays
+
+  Fixed-size arrays of `i32`, `i64` or `bool`:
+  - the size is part of the type: `3⃣[9] 🔓 cells ⟨0⟩`
+  - index read and write, with an `i32` or `i64` index
+  - a literal index out of range is a compile error
+  - any other index is checked at run time: a one-line error on stderr, then
+  `exit(1)`
+  - arrays can be struct fields
+  - arrays are passed to functions by reference; a `🔓` parameter lets the
+  function write the caller's array
+  - `📢` prints `[1, 0, 2]`
+
+  `<` and `>` are added as plain comparisons, so the program can reject a bad
+  move. They support the program and are not the feature.
+
+  ## Optimizer (`--optimize`)
+
+  - **Unused functions:** found by reachability from the top level. A member
+  function called anywhere counts as used.
+  - **Unused variables:** matched by declaration, so shadowing is safe. Calls
+  and `📥` are never dropped, and arrays are never removed.
+  - **Inlining:** a function called exactly once is replaced by its body, with
+  names renamed to `f.x` and the result in `f.0`. The README lists which shapes
+  are left alone.
+
+  The passes repeat until nothing changes. The whole suite also runs with the
+  flag.
+
+  ## Program
+
+  `programs/tictactoe.txt` is two-player tic-tac-toe. It has two recorded
+  sessions. The `llc` and `clang` commands are in the README.
+
+  ## Tests
+
+  `./run_tests.sh` runs `tests/ok`, `tests/err`, `tests/opt` and the program
+  sessions, each with and without `--optimize`.
+
+✻ Baked for 6s · done 8:54 PM
