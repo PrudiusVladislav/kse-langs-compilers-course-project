@@ -1,0 +1,25 @@
+🧩 step() → 3⃣
+{
+    🚪 1
+}
+🧱 Counter
+{
+    3⃣ 🔓 n
+    🧩 🔓 bump() → 3⃣
+    {
+        n := n + step() * step()
+        🚪 n
+    }
+    🧩 twice() → 3⃣
+    {
+        🚪 half() * 2
+    }
+    🧩 half() → 3⃣
+    {
+        🚪 n - 1
+    }
+}
+Counter 🔓 c ⟨0⟩
+📢 c.bump()
+📢 c.bump()
+🚪 c.n

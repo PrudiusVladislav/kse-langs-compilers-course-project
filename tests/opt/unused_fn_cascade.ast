@@ -1,0 +1,17 @@
+Program
+  Func used -> i32
+    Param n i32
+    Block
+      Exit
+        BinOp *
+          Var n
+          Const 3
+  Print
+    Call used args=1
+      Const 1
+    String " "
+    Call used args=1
+      Const 2
+  Exit
+    Call used args=1
+      Const 3

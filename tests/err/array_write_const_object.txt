@@ -1,0 +1,7 @@
+🧱 Board
+{
+    3⃣[3] 🔓 cells
+}
+Board b ⟨⟨0⟩⟩
+b.cells[0] := 1
+🚪 0

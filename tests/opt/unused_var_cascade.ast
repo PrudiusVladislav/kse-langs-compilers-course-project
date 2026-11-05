@@ -1,0 +1,19 @@
+Program
+  Func side -> i32
+    Param n i32
+    Block
+      Print
+        String "side "
+        Var n
+      Exit
+        Var n
+  Decl kept i32 const
+    Call side args=1
+      Const 1
+  Decl also i32 mut
+    Const 0
+  Assign also
+    Call side args=1
+      Const 2
+  Exit
+    Const 5

@@ -1,0 +1,14 @@
+🧱 Board
+{
+    3⃣[3] 🔓 cells
+    3⃣ turn
+    🧩 first() → 3⃣
+    {
+        🚪 turn
+    }
+}
+Board 🔓 b ⟨⟨0⟩, 1⟩
+Board c ⟨⟨4, 5, 6⟩, 2⟩
+📢 b
+📢 c.cells
+🚪 b.first() + c.first()
