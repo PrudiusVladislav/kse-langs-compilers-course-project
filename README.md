@@ -459,6 +459,36 @@ breaks `compare_order_bool`, `compare_order_twice`.
 
 ## Arrays in the IR
 
+`tests/ok/array_runtime_oob.txt` reads `a[i]` inside a loop. This is the loop
+body that reads `a[i]`, as `output.ll` has it:
+
+```
+body:
+  %".13" = load i32, i32* @"kg$i"
+  %"wide" = sext i32 %".13" to i64
+  %".14" = icmp ult i64 %"wide", 3
+  br i1 %".14", label %"index.ok", label %"index.oob"
+index.ok:
+  %".19" = getelementptr [3 x i32], [3 x i32]* @"kg$a", i32 0, i64 %"wide"
+  %".20" = load i32, i32* %".19"
+  %".21" = call i32 (i8*, ...) @"printf"(i8* bitcast ([3 x i8]* @"fmt_d" to i8*), i32 %".20")
+index.oob:
+  %".16" = call i32 (i32, i8*, ...) @"dprintf"(i32 2, i8* bitcast ([71 x i8]* @"str.0" to i8*), i32 5, i32 9, i64 %"wide", i32 3)
+  call void @"exit"(i32 1)
+  unreachable
+
+@"str.0" = private constant [71 x i8] c"runtime error: line %d:%d: index %lld out of range for 'a' of size %d\0a\00"
+```
+
+`body` widens the index to `i64` and compares it with the size as unsigned,
+so `-1` turns into a huge number and fails the same `ult` as `3` does; the
+`cbranch` sends it to one of two fresh blocks. `index.ok` is the only place
+the element is touched: a `getelementptr` with `[0, i]` into the global
+`[3 x i32]`, then the load that `📢` prints. `index.oob` writes the
+line to file descriptor 2 with the source position `5:9`, the index and the
+size as arguments, calls `exit(1)` and ends in `unreachable`, since `exit`
+never returns and the block needs a terminator.
+
 ## The optimizer
 
 ```sh
@@ -503,12 +533,81 @@ meet one of the caller's. These shapes are left alone:
 | a recursive function, directly or through others | never inlined |
 | a call in a `🔁` condition | the body would run once instead of every turn |
 | a statement that also calls something else or reads | moving the body up would reorder side effects |
+| a statement that reads a variable outside the call's arguments | the body could assign it before it is read, as in `g + bump(5)` |
 
 `opt/inline_basic`, `opt/inline_widen`, `opt/inline_left_alone`.
 
 ## Inlining in the IR
 
+`tests/opt/inline_basic.txt` calls `add(s, a)` once, in `3⃣ r ⟨add(s, a) * 2⟩`.
+Without `--optimize`, `main` calls the function and `kg.add` copies its
+arguments into slots of its own:
+
+```
+  %".4" = load i32, i32* @"kg$s"
+  %".5" = load i32, i32* @"kg$a"
+  %".6" = call i32 @"kg.add"(i32 %".4", i32 %".5")
+  %".7" = mul i32 %".6", 2
+
+define i32 @"kg.add"(i32 %".1", i32 %".2")
+{
+entry:
+  %"a" = alloca i32
+  store i32 %".1", i32* %"a"
+  %"b" = alloca i32
+  store i32 %".2", i32* %"b"
+  %"s" = alloca i32
+  %".6" = load i32, i32* %"a"
+  %".7" = load i32, i32* %"b"
+  %".8" = add i32 %".6", %".7"
+  store i32 %".8", i32* %"s"
+  %".10" = load i32, i32* %"s"
+  ret i32 %".10"
+}
+```
+
+With `--optimize` there is no `call` and no `kg.add`:
+
+```
+  %".4" = load i32, i32* @"kg$s"
+  store i32 %".4", i32* @"kg$add.a"
+  %".6" = load i32, i32* @"kg$a"
+  store i32 %".6", i32* @"kg$add.b"
+  %".8" = load i32, i32* @"kg$add.a"
+  %".9" = load i32, i32* @"kg$add.b"
+  %".10" = add i32 %".8", %".9"
+  store i32 %".10", i32* @"kg$add.s"
+  %".12" = load i32, i32* @"kg$add.s"
+  store i32 %".12", i32* @"kg$add.0"
+  %".14" = load i32, i32* @"kg$add.0"
+```
+
+The two argument loads are the same in both, but the inlined version stores
+them into `add.a` and `add.b`, the parameters turned into declarations. The
+`add` and its store into `add.s` are the function's body, renamed so it cannot
+meet the caller's own `s` and `a`, which still sit in `kg$s` and `kg$a`. The
+`ret` became the store into `add.0`, and the multiplication that follows loads
+`add.0` where the result of the `call` used to be.
+
 ## The program
+
+`programs/tictactoe.txt` is tic-tac-toe for two players at one keyboard. It
+prints the board, asks each player in turn for a cell from 1 to 9 with `📢`,
+reads it with `📥`, and ends with a win or a draw. The board is a `Board`
+structure whose `cells` field is a `3⃣[9]` array; its `🔓` member `place`
+writes a mark through `cells[at]` and refuses a taken cell, and `show` reads
+the nine cells by index. The plain function `wins(3⃣[9] c, 3⃣ p)` takes
+`b.cells` by reference and walks the eight lines through a global `3⃣[24]`
+array, indexing with `c[lines[k + j]]`. A cell outside 1 to 9 is caught with
+`<` and `>` and asked for again, so no input reaches a run-time bounds error.
+
+```sh
+python3 compiler.py programs/tictactoe.txt output.ll
+llc -filetype=obj -relocation-model=pic output.ll -o output.o
+clang -fPIE output.o -o tictactoe
+./tictactoe < programs/tictactoe.x_wins.in   # player 1 wins after an invalid and a taken cell
+./tictactoe < programs/tictactoe.draw.in     # a full board, no winner
+```
 
 ## Precedence
 

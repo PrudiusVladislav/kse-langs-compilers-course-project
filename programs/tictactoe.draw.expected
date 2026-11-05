@@ -1,0 +1,70 @@
+Tic-tac-toe for two. Cells are numbered 1 to 9, left to right, top to bottom.
+On the board 0 is an empty cell, 1 and 2 are the players' marks.
+ 0 | 0 | 0
+---+---+---
+ 0 | 0 | 0
+---+---+---
+ 0 | 0 | 0
+Player 1, your cell (1-9):
+ 0 | 0 | 0
+---+---+---
+ 0 | 1 | 0
+---+---+---
+ 0 | 0 | 0
+Player 2, your cell (1-9):
+Cell 5 is taken, pick another.
+ 0 | 0 | 0
+---+---+---
+ 0 | 1 | 0
+---+---+---
+ 0 | 0 | 0
+Player 2, your cell (1-9):
+ 2 | 0 | 0
+---+---+---
+ 0 | 1 | 0
+---+---+---
+ 0 | 0 | 0
+Player 1, your cell (1-9):
+ 2 | 0 | 1
+---+---+---
+ 0 | 1 | 0
+---+---+---
+ 0 | 0 | 0
+Player 2, your cell (1-9):
+ 2 | 0 | 1
+---+---+---
+ 0 | 1 | 0
+---+---+---
+ 2 | 0 | 0
+Player 1, your cell (1-9):
+ 2 | 0 | 1
+---+---+---
+ 1 | 1 | 0
+---+---+---
+ 2 | 0 | 0
+Player 2, your cell (1-9):
+ 2 | 0 | 1
+---+---+---
+ 1 | 1 | 2
+---+---+---
+ 2 | 0 | 0
+Player 1, your cell (1-9):
+ 2 | 0 | 1
+---+---+---
+ 1 | 1 | 2
+---+---+---
+ 2 | 1 | 0
+Player 2, your cell (1-9):
+ 2 | 2 | 1
+---+---+---
+ 1 | 1 | 2
+---+---+---
+ 2 | 1 | 0
+Player 1, your cell (1-9):
+ 2 | 2 | 1
+---+---+---
+ 1 | 1 | 2
+---+---+---
+ 2 | 1 | 1
+A draw.
+Program exit with result 3
