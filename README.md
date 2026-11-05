@@ -1,10 +1,11 @@
-# Kaguya — stage 2: functions, structures, read and print
+# Kaguya — stage 3: arrays, an optimizer, a real program
 
 A compiler for a small language with emoji keywords. `lexer.py` turns source
 bytes into typed tokens with a hand-written state machine; `Parser` in
 `compiler.py` reads those tokens by recursive descent and builds a tree;
 `SemanticChecker` walks the tree, decides the type of every expression and
-rejects bad programs; `CodeGen` walks the checked tree and emits LLVM IR through
+rejects bad programs; `Optimizer` shrinks the checked tree when asked to;
+`CodeGen` walks the checked tree and emits LLVM IR through
 the `llvmlite.ir` builder. `grammar.ebnf` is the grammar the parser implements,
 one method per rule, and `design.md` records why the language looks the way it
 does.
@@ -30,7 +31,8 @@ does.
 | `📢` | print | `F0 9F 93 A2` |
 | `→` | result type | `E2 86 92` |
 
-ASCII `,` separates arguments, parameters and values, and `.` selects a field. A
+ASCII `,` separates arguments, parameters and values, `.` selects a field,
+`[` `]` hold an array size or an index, and `<` `>` compare. A
 string literal is `"…"` on one line, with no escapes.
 
 No keyword is spelled with letters. An identifier is always an identifier, so
@@ -46,8 +48,8 @@ seven and will not lex. `port_corpus.py` refuses to write a file containing one.
 once and open a shell in it, from the repository root:
 
 ```sh
-docker build -t lcd-stage2 .
-docker run --rm -it -v "$PWD:/work" lcd-stage2
+docker build -t lcd-stage3 .
+docker run --rm -it -v "$PWD:/work" lcd-stage3
 ```
 
 Inside that shell:
@@ -55,6 +57,7 @@ Inside that shell:
 ```sh
 python3 compiler.py input.txt output.ll   # compile
 python3 compiler.py --ast input.txt       # print the tree, write nothing
+python3 compiler.py --optimize input.txt output.ll   # compile through the optimizer
 lli output.ll                             # run
 opt -passes=mem2reg -S output.ll          # the same IR, allocas promoted
 ```
@@ -94,6 +97,7 @@ shows even on a line full of four-byte glyphs.
 lex      bytes  -> one token vector per line        lexer.py
 parse    tokens -> a tree of Node subclasses        Parser
 check    tree   -> the same tree, typed             SemanticChecker
+optimize tree   -> a smaller tree, --optimize only  Optimizer
 walk     tree   -> LLVM IR                          CodeGen
 ```
 
@@ -337,6 +341,94 @@ Follows `print_values`, `fn_call_stmt`, `struct_print`; breaks
 📢 c                                 Circle { center: Point { x: 3, y: 4 }, r: 5 }
 ```
 
+## Arrays
+
+The stage 3 feature. Every rule is covered by one program that follows it and
+one that breaks it.
+
+**An array is a fixed number of elements of one built-in type, and the number
+is part of the type.** The size follows the type, between 1 and 2³¹−1. Follows
+`array_decl`; breaks `array_size_zero`, `array_size_missing`.
+
+**The initialiser is mandatory: one value per element, or a single value that
+fills every element.** A fill is evaluated once, so `3⃣[2] a ⟨📥⟩` reads one
+number and stores it twice. Each value is checked like a variable's
+initialiser, with `i32 → i64` widening. Follows `array_decl`,
+`array_fill_once`; breaks `array_count_short`, `array_count_extra`,
+`array_elem_type`, `array_elem_nested`.
+
+```
+3⃣[3] a ⟨1, 2, 3⟩
+3⃣[9] 🔓 cells ⟨0⟩
+```
+
+**A field may be an array**, and it takes a nested `⟨ ⟩` in the object's
+initialiser by the same rule. Follows `array_field`, `array_member`; breaks
+`array_field_needs_init`.
+
+```
+🧱 Board
+{
+    3⃣[9] 🔓 cells
+}
+Board 🔓 b ⟨⟨0⟩⟩
+```
+
+**`a[e]` reads an element. The index is `i32` or `i64`, and the index ends the
+chain**, so `b.cells[i]` works and `a[i][j]` does not parse. Follows
+`array_index`, `array_member`; breaks `array_index_bool`, `array_index_scalar`,
+`array_index_twice`.
+
+**A literal index — a number, or `-` before a number — outside `0 … N-1` is a
+compile error at the index.** Nothing else is folded. Follows
+`array_runtime_not_folded`; breaks `array_const_oob`, `array_const_negative`.
+
+**Any other index is checked when the program runs.** The check is unsigned, so
+a negative index is caught as well. Out of range, the program writes one line
+to stderr and exits with 1; whatever it printed before stays printed. Follows
+`array_runtime_oob`, `array_runtime_negative`, `array_runtime_not_folded`.
+
+```
+runtime error: line 5:9: index 3 out of range for 'a' of size 3
+```
+
+The line goes out through `dprintf(2, …)`, declared like `printf`, rather than
+`fprintf(stderr, …)`: the `stderr` symbol differs between glibc and macOS.
+
+**An element is assigned only through a chain that is `🔓` at every step**,
+the array included, exactly as a field is. Follows `array_index`,
+`array_member`; breaks `array_write_const`, `array_write_const_object`,
+`array_write_unmarked_member`, `array_write_type`.
+
+```
+b.cells[4] := 1
+```
+
+**An array is never copied.** It is not a value of `:=`, `==`, `+ - *`, a
+result, or `🚪`. `📢` prints it as `[1, 0, 2]`, and an object prints its array
+fields the same way. Follows `array_decl`, `array_field`; breaks
+`array_not_copied`, `array_compare`, `array_arith`, `array_exit`.
+
+**A parameter may be an array, passed by reference.** Its size and element
+type must match the argument's exactly. It is constant unless marked `🔓`;
+then the function may assign its elements and the argument must be `🔓` at
+every step. A scalar parameter still cannot be `🔓`. Follows `array_param`;
+breaks `array_arg_size`, `array_arg_scalar`, `array_arg_const`,
+`array_write_const_param`, `array_param_mut_scalar`.
+
+```
+🧩 wins(3⃣[9] c, 3⃣ p) → ❓
+🧩 clear(3⃣[9] 🔓 c, 3⃣ v) → 3⃣
+```
+
+## `<` and `>`
+
+Plain signed comparisons of two integers of any widths, giving a bool, under
+the same one-comparison rule as `==` and `≠`. They are here so the program can
+ask again for a move outside the board instead of crashing on it; they are
+support for the program, not the stage 3 feature. Follows `compare_order`;
+breaks `compare_order_bool`, `compare_order_twice`.
+
 ## Code generation for stage 2
 
 - Every function and member function is declared before any body is
@@ -351,6 +443,72 @@ Follows `print_values`, `fn_call_stmt`, `struct_print`; breaks
   string and string literal is a private global constant. `📥` is `scanf("%d")`
   into an entry-block slot. `📢` prints an `i32` with `%d`, an `i64` with
   `%lld`, and a bool through a `select` of `"true"`/`"false"` under `%s`.
+
+## Code generation for arrays
+
+- An array is an LLVM `[N x T]`: an `alloca` in the entry block, a global, or a
+  field of a structure's identified type. An element is a `gep` with
+  `[0, i]`.
+- A full initialiser is N stores. A fill evaluates its value once and stores
+  it in a loop with a back edge, so `3⃣[1000] a ⟨0⟩` costs one loop, not a
+  thousand stores.
+- `📢` prints the first element, then loops over the rest with `", "` before
+  each.
+- Every global slot is created before `main`'s first statement, so code the
+  inliner hoists above a global's line still finds it.
+
+## Arrays in the IR
+
+## The optimizer
+
+```sh
+python3 compiler.py --optimize input.txt output.ll
+python3 compiler.py --optimize --ast input.txt
+```
+
+`--optimize` may stand anywhere on the command line. It runs on the checked
+tree, before code generation; with `--ast` it prints the tree after it, while
+`--ast` alone still prints the tree straight from the parser. One round runs
+the three passes below in order, and rounds repeat until one changes nothing.
+
+**Unused functions.** Start from the calls in the top-level statements and the
+final `🚪`, follow the calls inside every body reached, and remove every
+function not reached. A member function called anywhere counts as reached.
+This gives the same result as removing unused functions again and again: a
+function survives the repetition exactly when a chain of calls leads to it
+from the top level. `opt/unused_fn_cascade`, `opt/unused_fn_member`.
+
+**Unused variables.** A variable is read when a `Var` that resolved to its
+declaration appears in any expression, so a shadowing declaration in a block
+is a different variable from the one outside. A read inside an assignment to
+the same variable does not count, so a counter nobody prints goes away with
+its updates. An unread declaration goes with all its assignments — unless its
+initialiser or one of them calls a function or `📥`, which is never dropped.
+Arrays, objects and parameters are never removed: dropping an indexed write
+could drop a run-time bounds error. `opt/unused_var_cascade`,
+`opt/unused_var_shadow`.
+
+**Inlining.** A function with exactly one call site is replaced at that site by
+its body. Each parameter becomes a constant declaration initialised with its
+argument, every parameter and local is renamed `f.x`, and the value of the
+body's `🚪` becomes `f.0`, declared with the function's result type. An
+identifier cannot contain `.` or start with a digit, so no renamed name can
+meet one of the caller's. These shapes are left alone:
+
+| shape | why |
+|---|---|
+| a `🚪` inside an `🤔` or a `🔁` | the body has more than one way out |
+| a member function | it reads fields by bare name |
+| an array parameter | the parameter must alias the argument, not copy it |
+| a recursive function, directly or through others | never inlined |
+| a call in a `🔁` condition | the body would run once instead of every turn |
+| a statement that also calls something else or reads | moving the body up would reorder side effects |
+
+`opt/inline_basic`, `opt/inline_widen`, `opt/inline_left_alone`.
+
+## Inlining in the IR
+
+## The program
 
 ## Precedence
 
@@ -385,6 +543,8 @@ wrapper for it.
   breaks `bool_arith`.
 - `==` and `≠` take two integers of any widths or two bools; the result is `bool`.
   Follows `compare_widths`, `bool_compare`; breaks `bool_vs_int`.
+- `<` and `>` take two integers of any widths; the result is `bool`. Follows
+  `compare_order`; breaks `compare_order_bool`.
 - The one conversion is `i32 → i64`, in an initialiser or an assignment. Nothing
   narrows, and a bool never meets an integer. Follows `i64_widen`; breaks
   `narrowing_init`.
@@ -538,18 +698,29 @@ compiled and run through `lli`, and its stdout is compared; a program in
 `tests/err/` must fail with the expected message and leave no output file. Where
 a `tests/ok/NAME.ast` exists, the `--ast` dump is compared against it too.
 Where a `tests/ok/NAME.in` exists, it is the program's standard input, and the
-`.expected` file holds only what the program prints.
+`.expected` file holds only what the program prints. Where a `NAME.code`
+exists, the program must exit with that status instead of 0 — a run-time
+out-of-range index — and `.expected` holds what it printed up to the crash.
+
+`tests/opt/` holds the optimizer's programs: each has the expected output and,
+in `NAME.ast`, the expected tree after `--optimize --ast`. `programs/` holds the
+real program and its recorded sessions: `NAME.SESSION.in` is what the user
+types and `NAME.SESSION.expected` the exact output, prompts included.
+
+Every program — `ok/`, `err/`, `opt/` and the sessions — runs twice, without
+and with `--optimize`, against the same expected files.
 
 Everything needed is in the `Dockerfile`:
 
 ```sh
-docker build -t lcd-stage2 .
-docker run --rm -v "$PWD:/work" lcd-stage2 ./run_tests.sh
+docker build -t lcd-stage3 .
+docker run --rm -v "$PWD:/work" lcd-stage3 ./run_tests.sh
 ```
 
-`check.py` runs the same programs and prints one row per test with a pass count
-at the end. `run_tests.sh` is the stricter of the two: it also diffs the `.ast`
-files.
+`check.py` runs the same programs once, without the flag, and prints one row
+per test with a pass count at the end. `run_tests.sh` is the stricter of the
+two: it also runs everything with `--optimize`, diffs the `.ast` files and runs
+the recorded sessions.
 
 ## Layout
 
@@ -557,9 +728,11 @@ files.
 lexer.py        byte-by-byte state machine over UTF-8, incl. the keycap lookahead
 grammar.ebnf    the grammar, one rule per parse method
 design.md       the language design and why each choice was made
-compiler.py     the AST classes, the parser, the semantic pass, the codegen walk
-tests/ok/       56 programs that run, 17 with expected trees, 2 with stdin
-tests/err/      88 programs that must fail
+compiler.py     the AST classes, the parser, the semantic pass, the optimizer, the codegen walk
+tests/ok/       66 programs that run, 19 with expected trees, 3 with stdin, 3 that crash
+tests/err/      115 programs that must fail
+tests/opt/      7 optimizer programs, each with its tree after --optimize
+programs/       the real program and its recorded sessions
 run_tests.sh    compiles and runs each test, compares against .expected
 check.py        the same tests as a pass/fail table
 port_corpus.py  the one-off script that ported the corpus to this syntax

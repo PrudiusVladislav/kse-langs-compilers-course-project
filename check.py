@@ -30,8 +30,9 @@ def run(src):
             input=stdin.read_text() if stdin.exists() else "",
         )
         out.unlink(missing_ok=True)
-        if ran.returncode != 0:
-            return False, "lli failed"
+        code = src.with_suffix(".code")
+        if ran.returncode != (int(code.read_text()) if code.exists() else 0):
+            return False, f"lli exited with {ran.returncode}"
         actual = ran.stdout.rstrip("\n")
 
     if actual != expected:
