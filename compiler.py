@@ -1,4 +1,6 @@
+import copy
 import sys
+from collections import Counter
 
 from llvmlite import ir
 import llvmlite.binding as llvm
@@ -52,6 +54,33 @@ def reads(node, target=None):
 
 def has_effect(node):
     return any(isinstance(n, (CallNode, ReadNode)) for n in walk(node))
+
+
+def own_nodes(statement):
+    if isinstance(statement, (IfNode, WhileNode)):
+        return list(walk(statement.cond))
+    if isinstance(statement, (FuncNode, StructNode)):
+        return []
+    return list(walk(statement))
+
+
+def callees(func):
+    seen, pending = set(), [func]
+    while pending:
+        for node in walk(pending.pop().body):
+            if isinstance(node, CallNode) and node.func not in seen:
+                seen.add(node.func)
+                pending.append(node.func)
+    return seen
+
+
+def replace(root, old, new):
+    for node in walk(root):
+        for key, value in vars(node).items():
+            if value is old:
+                setattr(node, key, new)
+            elif isinstance(value, list) and old in value:
+                value[value.index(old)] = new
 
 
 def aggregate(type_name):
@@ -1062,13 +1091,41 @@ class SemanticChecker:
         init.array = array
 
     def check_array_arg(self, arg, param, func):
-        raise NotImplementedError("passing an array to a function")
+        if arg.type != param.type_name:
+            raise CompileError(
+                *start(arg),
+                f"argument '{param.name}' of '{func.name}' must be {param.type_name}, "
+                f"got {arg.type}",
+            )
+        if param.mutable:
+            self.check_chain(arg, f"pass to \U0001f513 '{param.name}'")
 
     def visit_index(self, node):
-        raise NotImplementedError("index read rules")
+        array = node.target.accept(self)
+        if not isinstance(array, ArrayType):
+            target = node.target
+            raise CompileError(
+                target.line, target.col, f"cannot index '{node.name}' of type {array}"
+            )
+        if (have := node.index.accept(self)) not in ("i32", "i64"):
+            raise CompileError(node.line, node.col, f"an index must be i32 or i64, got {have}")
+        value = literal_value(node.index)
+        if value is not None and not 0 <= value < array.size:
+            raise CompileError(
+                node.line, node.col,
+                f"index {value} is out of range for '{node.name}' of size {array.size}",
+            )
+        node.type = array.elem
+        return node.type
 
     def visit_index_assign(self, node):
-        raise NotImplementedError("index write rules")
+        target = node.target
+        target.accept(self)
+        self.check_chain(target.target, "assign")
+        node.value.accept(self)
+        self.check_assignable(
+            node.value, target.type, node, f"assign to an element of '{target.name}'"
+        )
 
     def require_mutating(self, at, action):
         if not self.function.mutating:
@@ -1358,8 +1415,73 @@ class Optimizer:
             ]
         return bool(dead)
 
+    def inlinable(self, func, counts):
+        return (
+            func.owner is None and counts[func] == 1
+            and not any(isinstance(p.type_name, ArrayType) for p in func.params)
+            and not any(isinstance(n, ExitNode) for s in func.body.statements for n in walk(s))
+            and func not in callees(func)
+        )
+
+    def call_to_inline(self, statement, counts):
+        if isinstance(statement, WhileNode):
+            return None
+        own = own_nodes(statement)
+        effects = [n for n in own if isinstance(n, (CallNode, ReadNode))]
+        if len(effects) != 1 or not isinstance(call := effects[0], CallNode):
+            return None
+        inside = set(walk(call))
+        if any(isinstance(n, VarNode) and n not in inside for n in own):
+            return None
+        return call if self.inlinable(call.func, counts) else None
+
+    def splice(self, program, container, statement, call):
+        func = call.func
+        body_nodes = set(walk(func.body))
+        memo = {id(n): n for n in walk(program) if n not in body_nodes}
+        for struct in program.statements:
+            if isinstance(struct, StructNode):
+                memo[id(struct.symbol)] = struct.symbol
+                memo.update({id(f): f for f in struct.symbol.fields.values()})
+        hoisted = []
+        for param, arg in zip(func.params, call.args):
+            decl = DeclNode(
+                arg.line, arg.col, f"{func.name}.{param.name}", param.type_name, False, arg
+            )
+            memo[id(param)] = decl
+            hoisted.append(decl)
+        body = copy.deepcopy(func.body, memo)
+        locals_ = [n for n in walk(body) if isinstance(n, (DeclNode, ObjectNode))]
+        for decl in locals_:
+            decl.name = f"{func.name}.{decl.name}"
+        renamed = set(hoisted + locals_)
+        for node in walk(body):
+            if isinstance(node, (VarNode, AssignNode)) and node.decl in renamed:
+                node.name = node.decl.name
+
+        result = DeclNode(
+            call.line, call.col, f"{func.name}.0", func.result, False, body.exit.value
+        )
+        hoisted += body.statements + [result]
+        at = len(container.statements)
+        if statement is not container.exit:
+            at = container.statements.index(statement)
+        if statement is call:
+            container.statements[at:at + 1] = hoisted
+            return
+        var = VarNode(call.line, call.col, result.name)
+        var.decl, var.type = result, func.result
+        replace(statement, call, var)
+        container.statements[at:at] = hoisted
+
     def inline(self, program):
-        raise NotImplementedError("inlining")
+        counts = Counter(n.func for n in walk(program) if isinstance(n, CallNode))
+        for container in [n for n in walk(program) if isinstance(n, (ProgramNode, BlockNode))]:
+            for statement in container.statements + [container.exit]:
+                if statement is not None and (call := self.call_to_inline(statement, counts)):
+                    self.splice(program, container, statement, call)
+                    return True
+        return False
 
 
 class CodeGen:
@@ -1370,6 +1492,9 @@ class CodeGen:
         c_type = ir.FunctionType(I32, [ir.PointerType(I8)], var_arg=True)
         self.printf = ir.Function(self.module, c_type, name="printf")
         self.scanf = ir.Function(self.module, c_type, name="scanf")
+        fd_type = ir.FunctionType(I32, [I32, ir.PointerType(I8)], var_arg=True)
+        self.dprintf = ir.Function(self.module, fd_type, name="dprintf")
+        self.exit = ir.Function(self.module, ir.FunctionType(ir.VoidType(), [I32]), name="exit")
 
         self.builder = self.function = self.func_node = self.this = None
         self.functions = {}
@@ -1423,13 +1548,13 @@ class CodeGen:
         self.builder, self.function, self.func_node = saved
 
     def array_param_type(self, param):
-        raise NotImplementedError("passing an array to a function")
+        return self.ir_type(param.type_name).as_pointer()
 
     def bind_array_param(self, param, arg):
-        raise NotImplementedError("passing an array to a function")
+        self.slots[param] = arg
 
     def array_arg(self, arg):
-        raise NotImplementedError("passing an array to a function")
+        return self.address(arg)
 
     def element_slot(self, slot, index):
         return self.builder.gep(slot, [ir.Constant(I32, 0), index])
@@ -1531,11 +1656,37 @@ class CodeGen:
         value = self.coerce(node.value.accept(self), node.value.type, node.target.type)
         self.builder.store(value, self.address(node.target))
 
+    def checked_element(self, node):
+        slot = self.address(node.target)
+        index = self.coerce(node.index.accept(self), node.index.type, "i64")
+        size = node.target.type.size
+        ok_bb = self.function.append_basic_block("index.ok")
+        oob_bb = self.function.append_basic_block("index.oob")
+        self.builder.cbranch(
+            self.builder.icmp_unsigned("<", index, ir.Constant(I64, size)), ok_bb, oob_bb
+        )
+
+        self.builder.position_at_end(oob_bb)
+        data = (
+            f"runtime error: line %d:%d: index %lld out of range for '{node.name}' "
+            f"of size %d\n"
+        ).encode() + b"\0"
+        name = self.strings.setdefault(data, f"str.{len(self.strings)}")
+        self.builder.call(self.dprintf, [
+            ir.Constant(I32, 2), self.global_string(name, data), ir.Constant(I32, node.line),
+            ir.Constant(I32, node.col), index, ir.Constant(I32, size),
+        ])
+        self.builder.call(self.exit, [ir.Constant(I32, 1)])
+        self.builder.unreachable()
+        self.builder.position_at_start(ok_bb)
+        return self.element_slot(slot, index)
+
     def visit_index(self, node):
-        raise NotImplementedError("index read with the bounds check")
+        return self.builder.load(self.checked_element(node))
 
     def visit_index_assign(self, node):
-        raise NotImplementedError("index write with the bounds check")
+        value = self.coerce(node.value.accept(self), node.value.type, node.target.type)
+        self.builder.store(value, self.checked_element(node.target))
 
     def print_object(self, slot, struct):
         self.print_text(f"{struct} {{ ")
