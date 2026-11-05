@@ -460,6 +460,7 @@ are gone, is replaced at that site by its body. Left alone:
 | recursive, directly or through others | never |
 | a call in a `🔁` condition | hoisting runs it once instead of every turn |
 | a statement with another call or `📥` | hoisting would reorder side effects |
+| a statement that reads a variable outside the call's arguments | the body could assign it before it is read, as in `g + bump(5)` |
 
 The body goes before the statement that holds the call. Each parameter becomes
 a constant declaration initialised with its argument, every parameter and local
@@ -477,7 +478,8 @@ statement, so a read hoisted above a global's line still finds it.
 
 Tic-tac-toe. `Board` holds `3⃣[9] 🔓 cells` and a mutating member `place`
 that refuses a taken cell; `wins(3⃣[9] c, 3⃣ p)` is a plain function taking the
-cells array, checking the eight lines with literal indices; moves are read
+cells array, walking the eight lines through a global `3⃣[24] lines` table
+with `c[lines[k + j]]`; moves are read
 with `📥`, and a move outside 1–9 is asked again, using `<` and `>`.
 
 ## Who writes what

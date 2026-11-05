@@ -421,6 +421,70 @@ breaks `array_arg_size`, `array_arg_scalar`, `array_arg_const`,
 🧩 clear(3⃣[9] 🔓 c, 3⃣ v) → 3⃣
 ```
 
+### Two example programs
+
+`tests/ok/array_index.txt` fills an array in one loop, sums it in another, and
+indexes it with an `i64`:
+
+```
+3⃣[5] 🔓 sq ⟨0⟩
+6⃣ two ⟨2⟩
+3⃣ 🔓 i ⟨0⟩
+🔁 i < 5
+{
+    sq[i] := i * i
+    i := i + 1
+}
+3⃣ 🔓 sum ⟨0⟩
+i := 0
+🔁 i ≠ 5
+{
+    sum := sum + sq[i]
+    i := i + 1
+}
+📢 sq, " ", sq[4], " ", sq[two]
+🚪 sum
+```
+
+```
+[0, 1, 4, 9, 16] 16 4
+Program exit with result 30
+```
+
+`tests/ok/array_member.txt` keeps the array in a structure, writes it from a
+mutating member by bare name and from outside through `b.cells[8]`:
+
+```
+🧱 Board
+{
+    3⃣[9] 🔓 cells
+    🧩 🔓 place(3⃣ at, 3⃣ who) → ❓
+    {
+        🤔 cells[at] ≠ 0
+        {
+            🚪 ❌
+        }
+        cells[at] := who
+        🚪 ✅
+    }
+    🧩 get(3⃣ i) → 3⃣
+    {
+        🚪 cells[i]
+    }
+}
+Board 🔓 b ⟨⟨0⟩⟩
+📢 b.place(4, 1), " ", b.place(4, 2), " ", b.place(0, 2)
+b.cells[8] := 1
+📢 b.cells, " ", b.get(0), " ", b.cells[4]
+🚪 b.get(8)
+```
+
+```
+true false true
+[2, 0, 0, 0, 1, 0, 0, 0, 1] 2 1
+Program exit with result 1
+```
+
 ## `<` and `>`
 
 Plain signed comparisons of two integers of any widths, giving a bool, under
