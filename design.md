@@ -338,3 +338,227 @@ no function sees it.
   documented rather than tracked.
 - `printf` and `scanf` are bodiless variadic declarations, and every format
   string is a private global constant.
+
+# Stage 3 — decisions to pick
+
+Every decision below is a menu. ✔ marks my pick; you choose. Each rule comes
+before its syntax. Nothing here breaks a Stage 2 program: every new construct
+starts with a token that was an error before (`[`, `]`) or adds an optional
+mark in a place that used to reject it.
+
+Two facts about Kaguya shape every choice: it has no `<`, `>`, `/` or `%`, so
+a program can only compare with `==` and `≠` and compute with `+ - *`; and
+objects are never copied, so anything aggregate is passed by reference or not
+at all.
+
+## F. Which feature (Task 1, 5 pt)
+
+| | Arrays ✔ | Coroutines | Inheritance | Overloading |
+|---|---|---|---|---|
+| lexer | `[` `]` as two `SINGLES` | 2 glyphs: coroutine, yield | 2 glyphs: extends, virtual | nothing |
+| parser | `[N]` after a type; `[e]` as a chain link; reuse `parse_init` | coroutine header, yield stmt, resume call | `🧱 B ⬅ A`, mark on a member | nothing |
+| checker | array type (elem, size), constant-index range check, `🔓` array params, "not a value" rules | yield only inside a coroutine, yield type, resume type, done state | merged field table, duplicate across base, override signature match, member lookup through base | functions keyed by name + params, ranked resolution with `i32→i64`, ambiguity error |
+| codegen | `ArrayType` alloca/field, gep `[0, i]`, bounds check block calling `dprintf` + `exit`, array params as pointers | locals and resume index moved into a state struct, `switch` into the resume block, `slot_of` returns a gep instead of an alloca | vptr at index 0, one vtable global per structure, load-gep-load-call, bitcast `this` to base | mangled names `kg.f.i32.i64` |
+| IR excerpt | `icmp ult` → `br` to an `oob` block, then the `gep` | the state struct and the `switch i32 %state` | the vtable constant and the indirect `call` | two definitions, two calls picking each |
+| visibility in a real program | high: a board, a stock list, a score table | high: a generator or a task scheduler | medium: shapes, needs a base member calling a virtual one, since objects are never parameters | low: reads as convenience |
+| cost | medium | high | high | low, and looks thin at the defence |
+
+**Why arrays.** Every row of the handout's checklist is a test you can write
+and see fail; it extends rules Kaguya already has (const by default, `🔓` on
+every step of a chain, never copied) instead of adding a new model; and the
+run-time bounds error is a demo in itself. Codegen already does the hard part:
+allocas live in entry, chains already walk geps.
+
+**Loops — too thin, honestly.** Of the five items in the row, three already
+ship in Stage 2 and were built in class: `🔁` with a condition, the back edge
+(`cond`/`body`/`end`), a loop inside a loop, a body that declares a variable.
+What is left is `for` over a range and an optional `break` — a day's work, and
+the IR excerpt would show a back edge Stage 2 already prints. The handout asks
+for a feature "not built in class"; I would not bet 5 points on it.
+
+## A. Arrays, one decision at a time
+
+**A1. What an array holds.** Rule: an array is a fixed number of elements of
+one built-in type, the number is part of the type and is at least 1.
+- a. `i32`, `i64`, `bool` only ✔ — `3⃣[5] a ⟨1, 2, 3, 4, 5⟩`
+- b. also structures — `Point[3] ps ⟨⟨0, 0⟩, ⟨1, 1⟩, ⟨2, 2⟩⟩`; print and
+  init nest one level deeper, mutability chains grow an index step.
+
+**A2. Where the size goes.** Rule: a declaration still starts with its type, so
+`parse_statement` keeps dispatching on one token.
+- a. after the type ✔ — `3⃣[5] 🔓 a ⟨0⟩`; the same spelling is the param type
+- b. after the name, C style — `3⃣ 🔓 a[5] ⟨0⟩`; a param would read `3⃣ a[5]`
+- c. a glyph — `📦 3⃣ 5 🔓 a ⟨0⟩`; one more token, nothing gained
+
+**A3. The initialiser.** Rule: mandatory, as for every variable.
+- a. exactly one value per element — `3⃣[3] a ⟨1, 2, 3⟩`
+- b. exactly one per element, or a single value that fills all, evaluated once ✔
+  — `3⃣[9] 🔓 board ⟨0⟩`; a fill is lowered to a loop, not N stores
+- c. as b, but the single value is evaluated per element —
+  `3⃣[5] a ⟨📥⟩` reads five numbers; neat, but surprising for every other value
+
+**A4. Arrays inside structures.** Rule: a field may be an array, and
+`obj.f[i]` is a chain like `obj.f.x`.
+- a. no, variables and params only — the struct layout is untouched
+- b. yes ✔ — `🧱 Board { 3⃣[9] 🔓 cells … }`, `b.cells[4] := 1`; the program
+  needs a struct whose member function works on an array, and the chain code
+  is shared
+
+**A5. Indexing.** Rule: `a[e]` takes an `i32` or `i64` index, never a bool;
+one dimension only; an index ends a chain link, so `b.cells[i]` is fine and
+`a[i][j]` is a syntax error.
+- a. one dimension ✔ — `b.cells[r * 3 + c]`
+- b. arrays of arrays — `3⃣[3][3] g`; nested types in checker and print
+
+**A6. Out of range.** Rule: a constant index (after the existing negation fold)
+outside `0 … N-1` is a compile error at the index; any other index is checked
+at run time, unsigned, so a negative one is caught too.
+- a. run-time error on stdout through `printf`, exit 1 — the test script sees it
+  without changes, but it mixes with program output
+- b. run-time error on stderr through `dprintf(2, …)`, exit 1 ✔ —
+  `runtime error: line 7:9: index 12 out of range for 'a' of size 9`; the
+  test script gains `2>&1` and a `.code` file for the expected exit status
+- c. clamp or wrap — not what the handout asks
+
+**A7. Passing to a function.** Rule: an array is never copied; a parameter is a
+reference to the caller's array.
+- a. sized params ✔ — `🧩 sum(3⃣[5] a) → 3⃣`; the size must match, the
+  constant-index check still works inside
+- b. unsized `3⃣[] a` with a hidden length and a length operator `📏a` — one
+  `sum` for any size; costs a hidden argument, a new glyph, and the
+  compile-time check inside the function
+
+**A8. Writing through a parameter.** Rule: a parameter is constant, as in
+Stage 2. An array parameter may be marked `🔓`; then the function may assign
+its elements and the argument must be `🔓` at every step, exactly like a
+mutating member call. A scalar parameter with `🔓` stays an error.
+- a. array params read-only — `🧩 wins(3⃣[9] c, 3⃣ p) → ❓`
+- b. `🔓` allowed on array params ✔ — `🧩 clear(3⃣[9] 🔓 c) → 3⃣`
+
+**A9. What an array is not.** Rule: not a value of `:=`, `==`, arithmetic, a
+result or `🚪`, mirroring objects.
+- a. and not printable either
+- b. but `📢 a` prints `[1, 0, 2]` ✔ — one loop over the elements, same as the
+  object walk
+
+## O. The optimizer (Task 2, 4 pt)
+
+**O1. What `--ast` shows.** Rule: `--ast` alone stays parse-only, so every
+Stage 2 `.ast` file still matches.
+- a. `--optimize --ast` = parse, check, optimize, dump ✔
+- b. `--ast` always checks first — changes what a broken-but-parseable
+  program prints today
+
+**O2. What counts as reading a variable.** Rule: a read is a `Var` (or an
+array index/element `Var`) anywhere in an expression: an initialiser, a
+condition, an argument, an index, a print, an exit, a chain root. Reads are
+matched by `node.decl`, never by name, so shadowing and scopes come free.
+- a. any `Var` reads — `x := x + 1` keeps `x` alive forever
+- b. a `Var` inside an assignment to the same variable does not count ✔ —
+  a counter nobody prints disappears with its updates
+
+**O3. Side effects.** Rule: an expression that calls a function or `📥` is
+never dropped.
+- a. a variable whose initialiser or any assignment calls or reads is kept
+  whole ✔ — `3⃣ junk ⟨📥⟩` stays; simple and obviously safe
+- b. drop the variable, keep the calls as call statements — `📥` cannot stand
+  as a statement in Kaguya, so this needs a new node
+
+**O4. What the unused-variable pass may remove.**
+- a. scalars and arrays ✔ — an array only written to goes with its element
+  assignments
+- b. scalars only
+- c. objects too — a member call is a use, so an unused object is rare, and
+  its init may read
+
+Parameters are never removed: that would change the signature.
+
+**O5. Unused functions.** Rule: removing a body may leave another function
+unused, so the pass repeats until it removes nothing.
+- a. reachability from `main` over `node.func` edges ✔ — removes mutual
+  recursion islands too; one test shows the cascade
+- b. count call sites, ignoring a function's calls to itself, repeat
+
+Members are included (a member nobody calls goes), structures are not removed.
+
+**O6. Which shapes are inlined.** A function called at exactly one site, after
+O5. Recursive — direct or through others — never.
+
+| shape | inline? |
+|---|---|
+| straight-line body, one trailing `🚪` | yes |
+| `🚪` inside an `🤔` or `🔁` | no ✔ (a done flag and a result slot would do it) |
+| member function | no ✔ (fields by bare name would need rewriting to chains) |
+| a param is an array | no ✔ (a param must alias, not copy) |
+| call in a decl, assign, field assign, exit, print, call statement, `🤔` condition | yes, if no other call or `📥` is in the statement |
+| call in a `🔁` condition | never: hoisting runs it once instead of every turn |
+
+The "no other call" guard is what keeps hoisting from reordering side
+effects: `g(f(1))` and `f(1) + 📥` are left alone.
+- a. the table above ✔
+- b. also early exits through a flag — doubles the inliner for 2 of 4 points
+
+**O7. Renaming.** Rule: every param and local of the inlined body gets a name
+an identifier cannot spell, so it can never meet a caller's name.
+- a. `add.a`, `add.s` for locals, `add.0` for the result ✔ — `.` is not an
+  identifier character and an identifier cannot start with a digit; nested
+  inlining gives `g.add.s`
+- b. a counter, `s.1` — unique, but the tree no longer says where it came from
+- c. `_inl_s` — a user can spell it
+
+**O8. The value where the call stood.** Rule: the result keeps the function's
+result type, so `i32 → i64` widening still happens where it did.
+- a. a result decl ✔ — `6⃣ add.0 ⟨a + b⟩`, the call becomes `Var add.0`
+- b. substitute the exit expression directly — prettier, but a body leaving
+  with an `i32` from an `i64` function would multiply in 32 bits at the caller
+
+**O9. After the passes.** Rule: the optimizer keeps `decl` and `type` on every
+node it creates; the checker does not run again.
+- a. no re-check ✔ — a global read in the body keeps pointing at the global
+  even where the caller shadows it, which a re-check by name would get wrong
+- b. re-run the checker as a safety net — breaks on exactly that case
+
+Order: inline → unused variables → unused functions, all three repeated
+until a round changes nothing. Codegen creates every global slot before
+`main`'s first statement, so a read hoisted above a global's line still
+finds it (`global_read_zero` stays `0 7`).
+
+## P. The real program (Task 3, 4 pt)
+
+Constraint: only `==`, `≠`, `+ - *`. Each idea needs nothing else.
+
+1. **Tic-tac-toe** ✔ — `Board` with `3⃣[9] 🔓 cells`, member
+   `🔓 place(3⃣ at, 3⃣ who) → ❓` (false if taken), function
+   `wins(3⃣[9] c, 3⃣ p) → ❓` over the eight lines with constant indices,
+   `📥` moves, the board printed after each turn. Sessions: X wins, a draw,
+   and a third with move 12 that ends in the run-time bounds error.
+2. **Vending machine** — `Machine` with `stock` and `price` arrays, member
+   `🔓 sell(3⃣ slot) → ❓`, function `total(3⃣[5] p, 3⃣[5] s)`; reads slots
+   until 0, prints a receipt. Stock is sold one unit at a time so `≠ 0` is
+   enough.
+3. **Polynomial** — `Poly` with `3⃣[5] c` read from input, member `at(3⃣ x)`
+   by Horner, function `derive(3⃣[5] 🔓 out, 3⃣[5] in)`; prints p(x) and p'(x)
+   for each x read.
+4. **Memory pairs** — a fixed hidden `3⃣[8]` of pairs, `Game` member
+   `🔓 open(3⃣ i, 3⃣ j) → ❓`, function `left(3⃣[8] shown)`; the player reads two
+   positions per turn until all pairs are open.
+
+## Plan
+
+You:
+- pick F, A1–A9, O1–O9 and P
+- write `ai_usage_3.txt` (I can draft what was taken and changed; the
+  "what I understood" part has to be yours)
+- open or update the PR naming the feature; slides by 10 Nov 12:00
+
+Me, in this order, one commit per step, on `stage3`:
+1. `programs/` skeleton of the chosen program, smallest form that runs
+2. lexer `[` `]`, grammar, parser, `--ast`
+3. checker rules + 3 ok / 3 err tests per rule group, named `array_*`
+4. codegen: types, gep, bounds check, params, print; IR excerpt into README
+5. grow the program; two or three recorded sessions
+6. optimizer: `--optimize` flag, three passes, `tests/opt/` with 6+ programs,
+   `.ast` and `.expected` each; `run_tests.sh` runs the whole suite twice,
+   with and without the flag
+7. README: rules with examples and tests, IR excerpts (array, inlining
+   before/after), build commands, ten lines on the program; Makefile `IMAGE`
