@@ -1,0 +1,41 @@
+Program
+  Decl g i32 const
+    Const 7
+  Func getg -> i32
+    Param d i32
+    Block
+      Exit
+        BinOp +
+          Var g
+          Var d
+  Decl x i32 mut
+    Const 1
+  If
+    BinOp ==
+      Var x
+      Const 1
+    Block
+  Decl arr i32[3] mut
+    Init
+      Const 0
+  Decl i i32 mut
+    Const 0
+  While
+    BinOp !=
+      Var i
+      Const 3
+    Block
+      Assign i
+        BinOp +
+          Var i
+          Const 1
+  Print
+    Var x
+    String " "
+    Call getg args=1
+      Const 1
+    String " "
+    Call getg args=1
+      Const 2
+  Exit
+    Var x

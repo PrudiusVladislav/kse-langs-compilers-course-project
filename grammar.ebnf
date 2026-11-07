@@ -1,4 +1,4 @@
-(* Kaguya, stage 2. Quoted items are terminals: tokens the lexer emits, written
+(* Kaguya, stage 3. Quoted items are terminals: tokens the lexer emits, written
    with the same text. ident, number and string are terminals too, spelled by
    the lexical rules at the end. NL is the endline token. *)
 
@@ -6,9 +6,13 @@ program    ::= { top } exit_stmt
 
 top        ::= statement | func | struct
 
-statement  ::= decl | object | assign | field_set | call | print | if | while
+statement  ::= decl | array | object | assign | field_set | index_set | call | print | if | while
 
 decl       ::= type [ "🔓" ] ident "⟨" expr "⟩"
+
+array      ::= type size [ "🔓" ] ident init
+
+size       ::= "[" number "]"
 
 type       ::= "3⃣" | "6⃣" | "❓"
 
@@ -38,15 +42,17 @@ func       ::= "🧩" ident params "→" type NL body
 
 member     ::= "🧩" [ "🔓" ] ident params "→" type NL body
 
-params     ::= "(" [ type ident { "," type ident } ] ")"
+params     ::= "(" [ param { "," param } ] ")"
+
+param      ::= type ident | type size [ "🔓" ] ident
 
 body       ::= "{" NL { statement } exit_stmt NL "}" NL
 
 struct     ::= "🧱" ident NL "{" NL field { field } { member } "}" NL
 
-field      ::= ( type | ident ) [ "🔓" ] ident NL
+field      ::= ( type [ size ] | ident ) [ "🔓" ] ident NL
 
-expr       ::= arith [ ( "==" | "≠" ) arith ]
+expr       ::= arith [ ( "==" | "≠" | "<" | ">" ) arith ]
 
 arith      ::= term { ( "+" | "-" ) term }
 
@@ -61,7 +67,11 @@ factor     ::= number
              | "!" factor
              | "-" factor
 
-chain      ::= ident { "." ident } [ args ]
+chain      ::= ident { "." ident } [ args | index ]
+
+index      ::= "[" expr "]"
+
+index_set  ::= ident { "." ident } index ":=" expr
 
 call       ::= ident { "." ident } args
 
@@ -76,7 +86,7 @@ args       ::= "(" [ expr { "," expr } ] ")"
    string     ::= '"' { any byte but '"' and newline } '"'
    keycap     ::= ( "3" | "6" ) U+20E3             3⃣ and 6⃣, resolved in NUMBER
    glyphs     ::= 🔓 🤔 🙃 🔁 🚪 ✅ ❌ ⟨ ⟩ ≠ 🧩 🧱 📥 📢 →
-   singles    ::= { } ( ) + - * ! , .
+   singles    ::= { } ( ) [ ] + - * ! , . < >
    pairs      ::= ":=" | "=="
 
    A string has no escapes. One left open at the end of its line is an error
@@ -99,7 +109,17 @@ args       ::= "(" [ expr { "," expr } ] ")"
 
    '⟨' '⟩' delimit an initialiser and '{' '}' delimit a block, and neither does
    the other's job. An object's init nests: a structure-typed field takes an
-   init of its own.
+   init of its own, and so does an array field.
+
+   An array is a scalar type followed by size, in a declaration, a field or a
+   parameter, never in a result. Its init is the same rule as an object's; one
+   nested level is grammatical, and the checker rejects an element that is an
+   init. A '🔓' on a parameter is grammatical only after a size: scalar
+   parameters stay constant.
+
+   index sits only at the end of a chain, so a[i][j], a[i].x and f()[i] are
+   syntax errors: an element is a scalar with nothing to select. ':=' after a
+   chain ending in index is index_set.
 
    A line starting with an ident needs a second token to dispatch. An ident or
    '🔓' after it makes an object. Otherwise it is a chain: ':=' after a plain
@@ -111,8 +131,9 @@ args       ::= "(" [ expr { "," expr } ] ")"
    call is an argument of another call.
 
    expr allows at most one comparison, and it binds weaker than arithmetic: the
-   second arith is the only place "==" or "≠" can appear, so a second
-   comparison is left over after the expression and rejected there.
+   second arith is the only place "==", "≠", "<" or ">" can appear, so a second
+   comparison is left over after the expression and rejected there. "<" and
+   ">" are there for programs, not as the stage 3 feature.
 
    '!' and unary '-' are in factor and recurse on factor, so they bind tighter
    than every binary operator: !a == b compares !a with b, -a * b is (-a) * b,
@@ -124,7 +145,9 @@ args       ::= "(" [ expr { "," expr } ] ")"
    Types are not in the grammar: 3⃣ a ⟨ ✅ ⟩ parses. They are checked in the
    semantic pass, along with declaration before use, declaration once per
    scope, 🔓 before :=, the argument count and types, the type a function
-   leaves with, field existence, chain mutability and the mutating mark.
+   leaves with, field existence, chain mutability and the mutating mark, the
+   number of values in an array's init, the index type and a literal index
+   out of range.
 
    Scopes are not in the grammar either. A block is one rule here and one frame
    in the semantic pass and one builder position in codegen, and those three do

@@ -1,0 +1,27 @@
+Program
+  Decl s i32 const
+    Const 10
+  Decl a i32 const
+    Const 2
+  Decl add.a i32 const
+    Var s
+  Decl add.b i32 const
+    Var a
+  Decl add.s i32 const
+    BinOp +
+      Var add.a
+      Var add.b
+  Decl add.0 i32 const
+    Var add.s
+  Decl r i32 const
+    BinOp *
+      Var add.0
+      Const 2
+  Print
+    Var r
+    String " "
+    Var s
+    String " "
+    Var a
+  Exit
+    Var r

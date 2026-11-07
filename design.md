@@ -338,3 +338,159 @@ no function sees it.
   documented rather than tracked.
 - `printf` and `scanf` are bodiless variadic declarations, and every format
   string is a private global constant.
+
+# Stage 3 — arrays, the optimizer, a real program
+
+Every Stage 2 program stays valid and prints the same: each new construct
+starts with a token that was an error before (`[`, `]`, `<`, `>`), or puts a
+`🔓` where one used to be rejected.
+
+## Why arrays
+
+Four menu rows fitted Kaguya. Their costs, compiler stage by stage:
+
+| | Arrays (chosen) | Coroutines | Inheritance | Overloading |
+|---|---|---|---|---|
+| lexer | `[` `]` | 2 glyphs | 2 glyphs | nothing |
+| parser | a size after a type, an index link at the end of a chain | header, yield, resume | extends, virtual mark | nothing |
+| checker | element count, index type, literal range, `🔓` chains, array params | yield placement and type, done state | merged fields, override match | ranked resolution with widening |
+| codegen | gep, bounds check block, pointer params, print loop | state struct, `switch` on resume | vptr, vtable, indirect call | mangled names |
+| visibility | high | high | medium: objects are never params | low |
+
+Arrays extend rules Kaguya already has: constant by default, `🔓` at every
+step of a chain, nothing aggregate is copied. Loops were rejected as too thin:
+`🔁` with its back edge, nesting and a body declaring a variable all shipped in
+Stage 2 and were built in class, leaving only `for` and `break`.
+
+## Arrays
+
+**An array is a fixed number of elements of one built-in type; the number is
+part of the type, 1 to 2³¹−1.** The size follows the type, so a declaration
+still starts with its type token. `3⃣[0]` is an error at the `0`.
+
+```
+3⃣[9] 🔓 cells ⟨0⟩
+```
+
+**The initialiser is mandatory: one value per element, or a single value that
+fills every element, evaluated once.** `3⃣[2] a ⟨📥⟩` reads one number and
+stores it twice. A fill is lowered to a loop, not N stores.
+
+**A field may be an array.** In an object's initialiser it takes a nested
+`⟨ ⟩`, by the same count rule.
+
+```
+🧱 Board
+{
+    3⃣[9] 🔓 cells
+}
+Board 🔓 b ⟨⟨0⟩⟩
+```
+
+**`a[e]` selects an element. The index is `i32` or `i64`, never a bool. The
+index ends the chain:** `b.cells[i]` is fine; `a[i][j]` is a syntax error.
+
+**A literal index — a number, or `-` before a number — outside `0 … N-1` is a
+compile error at the index.** Nothing else is folded: `a[1 + 2]` on a
+3-element array compiles and fails at run time.
+
+**Any other index is checked at run time, unsigned, so a negative one is caught
+too.** Out of range, the program writes one line to fd 2 and calls `exit(1)`:
+
+```
+runtime error: line 5:9: index 3 out of range for 'a' of size 3
+```
+
+`dprintf` is declared like `printf` with a leading `i32` fd. The `stderr`
+global is not used: its symbol differs between glibc and macOS, and the
+defence binary runs on a Mac. `exit`, not `_exit`, so what `printf` buffered
+before the crash still reaches stdout.
+
+**An element is assigned only through a chain that is `🔓` at every step**,
+exactly as a field: the root, every field, the array itself.
+
+**An array is never copied.** It is not a value of `:=`, `==`, arithmetic, a
+result, or `🚪`. `📢 a` prints `[1, 0, 2]`, and an object prints its array
+fields the same way.
+
+**A parameter may be an array of a fixed size, passed by reference.** The size
+and element type must match exactly. It is constant unless marked `🔓`; then
+the function may assign its elements, and the argument must be `🔓` at every
+step, like a mutating member call. A scalar parameter with `🔓` stays an error.
+
+```
+🧩 wins(3⃣[9] c, 3⃣ p) → ❓
+🧩 clear(3⃣[9] 🔓 c, 3⃣ v) → 3⃣
+```
+
+**`<` and `>` are plain signed comparisons of two integers, under the same
+one-comparison rule.** They exist for the program (rejecting a move of 10
+instead of crashing on it) and are not the stage 3 feature.
+
+## The optimizer
+
+`--optimize`, anywhere on the command line, runs on the checked tree.
+`--ast` alone stays parse-only; `--optimize --ast` parses, checks, optimizes
+and dumps. One round is unused functions, unused variables, inlining; rounds
+repeat until one changes nothing.
+
+**Unused functions.** Reachability: start from the calls in top-level
+statements and the exit, follow the calls inside each reached body. A member
+function called anywhere counts as reached. Whatever is not reached is
+removed — the same result as removing unused functions again and again, since
+a function is left after the repetition exactly when a chain of calls leads to
+it from the top level.
+
+**Unused variables.** A read is a `Var` anywhere in an expression, matched by
+the declaration it resolved to, never by name, so scopes and shadowing need no
+extra care. A `Var` inside an assignment to the same variable is not a read:
+`x := x + 1` alone does not keep `x`. A scalar declaration with no read is
+removed with its assignments, unless its initialiser or one of them calls a
+function or `📥`. Arrays are never removed: dropping an indexed write can drop
+a run-time bounds error. Objects and parameters are never removed.
+
+**Inlining.** A function with exactly one call site, after unused functions
+are gone, is replaced at that site by its body. Left alone:
+
+| shape | why |
+|---|---|
+| a `🚪` inside an `🤔` or `🔁` | needs a done flag and a result slot |
+| a member function | fields by bare name would need rewriting |
+| an array parameter | a parameter must alias, not copy |
+| recursive, directly or through others | never |
+| a call in a `🔁` condition | hoisting runs it once instead of every turn |
+| a statement with another call or `📥` | hoisting would reorder side effects |
+| a statement that reads a variable outside the call's arguments | the body could assign it before it is read, as in `g + bump(5)` |
+
+The body goes before the statement that holds the call. Each parameter becomes
+a constant declaration initialised with its argument, every parameter and local
+is renamed `f.x`, and the exit value becomes `f.0`, declared with the
+function's result type so `i32 → i64` widening happens where it did. `.` is
+not an identifier character and an identifier cannot start with a digit, so no
+caller name can collide.
+
+The checker does not run again: the inliner sets `decl` and `type` on every
+node it creates. A re-check by name would be wrong where the caller shadows a
+global the body reads. Codegen creates every global slot before `main`'s first
+statement, so a read hoisted above a global's line still finds it.
+
+## The program
+
+Tic-tac-toe. `Board` holds `3⃣[9] 🔓 cells` and a mutating member `place`
+that refuses a taken cell; `wins(3⃣[9] c, 3⃣ p)` is a plain function taking the
+cells array, walking the eight lines through a global `3⃣[24] lines` table
+with `c[lines[k + j]]`; moves are read
+with `📥`, and a move outside 1–9 is asked again, using `<` and `>`.
+
+## Who writes what
+
+Vlad, by hand: the index rules in the checker (literal range, index type, `🔓`
+at every step for a write), index read and write codegen with the bounds check
+and its error block, passing an array to a function in the checker and in
+codegen, the inlining pass, the program, and the sentences under both README
+IR excerpts.
+
+Claude: lexer, grammar, parser and tree for arrays and for `<` `>`; array
+declaration and fill; arrays as fields; printing an array; `--optimize` with
+the unused-function and unused-variable passes and the repeat loop; the test
+script; every test; the README apart from Vlad's parts.

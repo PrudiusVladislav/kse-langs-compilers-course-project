@@ -1,0 +1,22 @@
+🧱 Board
+{
+    3⃣[9] 🔓 cells
+    🧩 🔓 place(3⃣ at, 3⃣ who) → ❓
+    {
+        🤔 cells[at] ≠ 0
+        {
+            🚪 ❌
+        }
+        cells[at] := who
+        🚪 ✅
+    }
+    🧩 get(3⃣ i) → 3⃣
+    {
+        🚪 cells[i]
+    }
+}
+Board 🔓 b ⟨⟨0⟩⟩
+📢 b.place(4, 1), " ", b.place(4, 2), " ", b.place(0, 2)
+b.cells[8] := 1
+📢 b.cells, " ", b.get(0), " ", b.cells[4]
+🚪 b.get(8)

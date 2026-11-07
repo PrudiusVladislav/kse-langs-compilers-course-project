@@ -1,0 +1,27 @@
+Program
+  Decl a i32[3] const
+    Init
+      Const 1
+      Const 2
+      Const 3
+  Decl w i64[2] mut
+    Init
+      Const 1
+      Const 3000000000
+  Decl flags bool[2] const
+    Init
+      Bool true
+  Decl neg i32[4] const
+    Init
+      Neg
+        Const 1
+  Print
+    Var a
+    String " "
+    Var w
+    String " "
+    Var flags
+    String " "
+    Var neg
+  Exit
+    Const 0

@@ -1,0 +1,29 @@
+Program
+  Func step -> i32
+    Block
+      Exit
+        Const 1
+  Struct Counter
+    Field n i32 mut
+    Member bump -> i32 mutating
+      Block
+        Assign n
+          BinOp +
+            Var n
+            BinOp *
+              Call step args=0
+              Call step args=0
+        Exit
+          Var n
+  Object c Counter mut
+    Init
+      Const 0
+  Print
+    MemberCall bump args=0
+      Var c
+  Print
+    MemberCall bump args=0
+      Var c
+  Exit
+    Dot n
+      Var c

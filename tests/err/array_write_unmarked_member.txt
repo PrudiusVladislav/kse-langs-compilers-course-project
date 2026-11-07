@@ -1,0 +1,11 @@
+🧱 Board
+{
+    3⃣[3] 🔓 cells
+    🧩 put(3⃣ i) → 3⃣
+    {
+        cells[i] := 1
+        🚪 i
+    }
+}
+Board 🔓 b ⟨⟨0⟩⟩
+🚪 b.put(0)

@@ -1,0 +1,39 @@
+Program
+  Decl i i32 mut
+    Const 0
+  Decl big i64 const
+    Const 3000000000
+  While
+    BinOp <
+      Var i
+      Const 3
+    Block
+      Assign i
+        BinOp +
+          Var i
+          Const 1
+  Decl a bool const
+    BinOp >
+      Var i
+      Const 2
+  Decl b bool const
+    BinOp <
+      Var big
+      Var i
+  Decl c bool const
+    BinOp <
+      Neg
+        Const 1
+      Const 0
+  Print
+    Var i
+    String " "
+    Var a
+    String " "
+    Var b
+    String " "
+    Var c
+  Exit
+    BinOp >
+      Var i
+      Const 3

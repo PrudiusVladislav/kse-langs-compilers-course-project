@@ -1,0 +1,103 @@
+Program
+  Func sign -> i32
+    Param n i32
+    Block
+      If
+        BinOp <
+          Var n
+          Const 0
+        Block
+          Exit
+            Neg
+              Const 1
+      Exit
+        Const 1
+  Func even -> bool
+    Param n i32
+    Block
+      If
+        BinOp <
+          Var n
+          Const 1
+        Block
+          Exit
+            BinOp ==
+              Var n
+              Const 0
+      Exit
+        Call odd args=1
+          BinOp -
+            Var n
+            Const 1
+  Func odd -> bool
+    Param n i32
+    Block
+      Exit
+        Call even args=1
+          BinOp -
+            Var n
+            Const 1
+  Func dec -> i32
+    Param n i32
+    Block
+      Exit
+        BinOp -
+          Var n
+          Const 1
+  Func twice -> i32
+    Param n i32
+    Block
+      Exit
+        BinOp *
+          Var n
+          Const 2
+  Func three -> i32
+    Block
+      Exit
+        Const 3
+  Struct Box
+    Field v i32 const
+    Member get -> i32
+      Block
+        Exit
+          Var v
+  Object b Box const
+    Init
+      Const 4
+  Decl s i32 const
+    Call sign args=1
+      Neg
+        Const 5
+  Decl e bool const
+    Call even args=1
+      Const 4
+  Decl g i32 const
+    MemberCall get args=0
+      Var b
+  Decl k i32 mut
+    Const 3
+  While
+    BinOp !=
+      Call dec args=1
+        Var k
+      Const 0
+    Block
+      Assign k
+        BinOp -
+          Var k
+          Const 1
+  Decl t i32 const
+    Call twice args=1
+      Call three args=0
+  Print
+    Var s
+    String " "
+    Var e
+    String " "
+    Var g
+    String " "
+    Var k
+    String " "
+    Var t
+  Exit
+    Var k

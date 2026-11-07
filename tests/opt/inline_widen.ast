@@ -1,0 +1,25 @@
+Program
+  Decl x i32 const
+    Const 5
+  Decl y i32 const
+    Const 100
+  Decl scale.x i32 const
+    Var y
+  Decl scale.y i32 const
+    BinOp *
+      Var scale.x
+      Const 2
+  Decl scale.0 i64 const
+    Var scale.y
+  Decl big i64 const
+    BinOp *
+      Var scale.0
+      Const 3000000000
+  Print
+    Var x
+    String " "
+    Var y
+    String " "
+    Var big
+  Exit
+    Var big

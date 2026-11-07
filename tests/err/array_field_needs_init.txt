@@ -1,0 +1,7 @@
+🧱 Board
+{
+    3⃣[3] 🔓 cells
+    3⃣ turn
+}
+Board b ⟨0, 1⟩
+🚪 0
